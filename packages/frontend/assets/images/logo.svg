@@ -1,0 +1,45 @@
+<svg width="512" height="512" viewBox="0 0 860 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7B5BFF" />
+      <stop offset="100%" stop-color="#20D0FF" />
+    </linearGradient>
+    <linearGradient id="inner" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#E5E4FF" stop-opacity="0.85" />
+    </linearGradient>
+  </defs>
+
+  <g fill="none" fill-rule="evenodd">
+    <circle cx="256" cy="256" r="196" fill="url(#gradient)" />
+    <circle cx="256" cy="256" r="188" fill="#111827" opacity="0.18" />
+    <circle cx="256" cy="256" r="168" fill="url(#inner)" />
+    <circle cx="256" cy="256" r="164" stroke="#111827" stroke-width="16" />
+
+    <path d="M186 234 C220 198, 236 178, 256 180 C276 182, 296 208, 314 238 C332 268, 344 290, 360 312"
+          stroke="#111827"
+          stroke-width="18"
+          stroke-linecap="round"
+          stroke-linejoin="round" />
+    <path d="M158 300 C186 256, 210 228, 234 220"
+          stroke="#111827"
+          stroke-width="18"
+          stroke-linecap="round"
+          stroke-linejoin="round" />
+
+    <circle cx="376" cy="154" r="18" fill="#FFFFFF" opacity="0.95" />
+    <circle cx="124" cy="167" r="12" fill="#111827" opacity="0.25" />
+    <circle cx="142" cy="370" r="10" fill="#111827" opacity="0.18" />
+    <circle cx="394" cy="360" r="14" fill="#111827" opacity="0.22" />
+
+    <text x="520" y="280"
+          text-anchor="start"
+          font-family="Arial, Helvetica, sans-serif"
+          font-size="84"
+          font-weight="800"
+          fill="#111827"
+          letter-spacing="1.2">
+      Vibely
+    </text>
+  </g>
+</svg>

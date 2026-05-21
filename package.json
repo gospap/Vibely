@@ -1,0 +1,12 @@
+{
+  "name": "vibely",
+  "version": "1.0.0",
+  "description": "social app",
+  "license": "ISC",
+  "author": "gospap",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test"
+  }
+}
