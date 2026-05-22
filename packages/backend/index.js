@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const { connectDB } = require("./db");
-const { User } = require("./models");
+const { User, Event } = require("./models");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cors = require("cors");

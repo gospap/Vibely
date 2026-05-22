@@ -7,7 +7,8 @@ export const FONT_FAMILY = Platform.select({
 });
 
 export const COLORS = {
-  background: "#F7F8FB",
+  background: "#c2c2c2",
+
   surface: "#FFFFFF",
   primary: "#4F7CFF",
   text: "#111827",

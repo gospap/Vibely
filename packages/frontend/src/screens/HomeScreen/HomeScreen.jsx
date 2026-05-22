@@ -1,103 +1,219 @@
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   Image,
-  TouchableOpacity,
   Modal,
-  StyleSheet,
+  TouchableOpacity,
   TouchableWithoutFeedback,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
-import { useEffect, useState } from "react";
-import { useRouter } from "expo-router";
-import { API_URL } from "../../constants/api";
 import StorePin from "../../components/StorePin";
+import { API_URL } from "../../constants/api";
+import styles from "./HomeScreen.styles";
 
 export default function HomeScreen() {
+  const mapRef = useRef(null);
+
   const [region, setRegion] = useState(null);
-  const [heading, setHeading] = useState(0);
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState(null);
 
-  const router = useRouter();
+  const [routeCoords, setRouteCoords] = useState([]);
+  const [eta, setEta] = useState(null);
+  const [distance, setDistance] = useState(null);
+  const [navigating, setNavigating] = useState(false);
+  const [followUser, setFollowUser] = useState(true);
+
+  const [lastReroute, setLastReroute] = useState(0);
 
   useEffect(() => {
-    let subscription;
+    let sub;
 
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") return;
 
-      let loc = await Location.getCurrentPositionAsync({});
+      const loc = await Location.getCurrentPositionAsync({});
 
-      setRegion({
+      const initial = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      });
+        latitudeDelta: 0.002,
+        longitudeDelta: 0.002,
+      };
 
-      subscription = await Location.watchPositionAsync(
+      setRegion(initial);
+
+      sub = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          timeInterval: 1000,
           distanceInterval: 1,
+          timeInterval: 1500,
         },
         (loc) => {
-          setRegion({
+          const coords = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-          });
+            latitudeDelta: 0.002,
+            longitudeDelta: 0.002,
+          };
 
-          setHeading(loc.coords.heading || 0);
+          setRegion(coords);
+
+          if (followUser && mapRef.current) {
+            mapRef.current.animateToRegion(coords, 500);
+          }
+
+          if (navigating && routeCoords.length > 0) {
+            const now = Date.now();
+
+            if (isOffRoute(coords, routeCoords) && now - lastReroute > 10000) {
+              setLastReroute(now);
+              getDirections(coords);
+            }
+          }
         },
       );
     })();
 
-    return () => {
-      if (subscription) subscription.remove();
-    };
-  }, []);
+    return () => sub?.remove();
+  }, [followUser, navigating]);
 
   useEffect(() => {
-    const fetchStores = async () => {
+    (async () => {
       try {
         const res = await fetch(`${API_URL}/stores`);
         const data = await res.json();
         setStores(data);
-      } catch (err) {
-        console.error("Failed to fetch stores", err);
+      } catch (e) {
+        console.log(e);
       }
-    };
-
-    fetchStores();
+    })();
   }, []);
+
+  const getDirections = async (destination) => {
+    if (!region) return;
+
+    try {
+      const url =
+        `https://api.openrouteservice.org/v2/directions/driving-car` +
+        `?api_key=${process.env.EXPO_PUBLIC_ORS_API_KEY}` +
+        `&start=${region.longitude},${region.latitude}` +
+        `&end=${destination.longitude},${destination.latitude}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      const coords = data.features[0].geometry.coordinates.map((c) => ({
+        latitude: c[1],
+        longitude: c[0],
+      }));
+
+      const summary = data.features[0].properties.summary;
+
+      setRouteCoords(coords);
+      setDistance(summary.distance / 1000);
+      setEta(summary.duration / 60);
+      setNavigating(true);
+
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 80, right: 50, bottom: 120, left: 50 },
+        animated: true,
+      });
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const haversineDistance = (a, b) => {
+    const toRad = (x) => (x * Math.PI) / 180;
+
+    const R = 6371e3;
+    const dLat = toRad(b.latitude - a.latitude);
+    const dLon = toRad(b.longitude - a.longitude);
+
+    const lat1 = toRad(a.latitude);
+    const lat2 = toRad(b.latitude);
+
+    const x =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  };
+
+  const isOffRoute = (current, route) => {
+    if (!route || route.length === 0) return false;
+
+    let minDist = Infinity;
+
+    for (let i = 0; i < route.length; i++) {
+      const d = haversineDistance(current, route[i]);
+      if (d < minDist) minDist = d;
+    }
+
+    return minDist > 25;
+  };
 
   if (!region) return null;
 
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={region}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsUserLocation
+        followsUserLocation={false}
+        onPanDrag={() => setFollowUser(false)}
+        onTouchStart={() => setFollowUser(false)}
       >
+        {routeCoords.length > 0 && (
+          <Polyline
+            coordinates={routeCoords}
+            strokeWidth={5}
+            strokeColor="#2F6BFF"
+          />
+        )}
+
         {stores.map((store) => {
-          const latitude = store.location?.lat || store.latitude || 0;
-          const longitude = store.location?.lng || store.longitude || 0;
-          const storeId = store._id || store.id;
+          const latitude = store.location?.lat || store.latitude;
+          const longitude = store.location?.lng || store.longitude;
 
           return (
-            <Marker key={storeId} coordinate={{ latitude, longitude }}>
+            <Marker
+              key={store._id || store.id}
+              coordinate={{ latitude, longitude }}
+            >
               <StorePin store={store} onPress={() => setSelectedStore(store)} />
             </Marker>
           );
         })}
       </MapView>
+
+      {!followUser && (
+        <TouchableOpacity
+          style={styles.focusButton}
+          onPress={() => {
+            setFollowUser(true);
+
+            if (region && mapRef.current) {
+              mapRef.current.animateToRegion(region, 500);
+            }
+          }}
+        >
+          <Text style={styles.focusText}>🎯</Text>
+        </TouchableOpacity>
+      )}
+
+      {navigating && (
+        <View style={styles.routeCard}>
+          <Text style={styles.routeText}>🚗 {distance?.toFixed(1)} km</Text>
+          <Text style={styles.routeText}>⏱ {eta?.toFixed(0)} min</Text>
+        </View>
+      )}
 
       <Modal visible={!!selectedStore} transparent animationType="slide">
         <TouchableWithoutFeedback onPress={() => setSelectedStore(null)}>
@@ -109,43 +225,42 @@ export default function HomeScreen() {
                     uri:
                       selectedStore?.images?.[0] ||
                       selectedStore?.imageUrl ||
-                      "https://via.placeholder.com/400x240?text=Vibely",
+                      "https://via.placeholder.com/400",
                   }}
                   style={styles.modalImage}
                 />
+
                 <View style={styles.modalContent}>
-                  <Text style={styles.modalHeader}>
-                    Πληροφορίες Καταστήματος
-                  </Text>
+                  <Text style={styles.modalHeader}>Κατάστημα</Text>
                   <Text style={styles.modalTitle}>{selectedStore?.name}</Text>
+
                   <Text style={styles.modalDescription}>
-                    {selectedStore?.description ||
-                      "Δεν υπάρχουν επιπλέον πληροφορίες."}
+                    {selectedStore?.description}
                   </Text>
 
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Βαθμολογία</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedStore?.ratings?.average?.toFixed(1) ?? "N/A"} (
-                      {selectedStore?.ratings?.count ?? 0})
-                    </Text>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Δημιουργήθηκε</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedStore?.createdAt
-                        ? new Date(selectedStore.createdAt).toLocaleDateString(
-                            "el-GR",
-                          )
-                        : "-"}
-                    </Text>
-                  </View>
                   <TouchableOpacity
                     style={styles.closeButton}
                     onPress={() => setSelectedStore(null)}
                   >
                     <Text style={styles.closeButtonText}>Κλείσιμο</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.closeButton, { marginTop: 10 }]}
+                    onPress={() => {
+                      const dest = {
+                        latitude:
+                          selectedStore.location?.lat || selectedStore.latitude,
+                        longitude:
+                          selectedStore.location?.lng ||
+                          selectedStore.longitude,
+                      };
+
+                      setSelectedStore(null);
+                      getDirections(dest);
+                    }}
+                  >
+                    <Text style={styles.closeButtonText}>Start Navigation</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -156,83 +271,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    flex: 1,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-    maxHeight: "75%",
-  },
-  modalImage: {
-    width: "100%",
-    height: 220,
-    resizeMode: "cover",
-  },
-  modalContent: {
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  modalDescription: {
-    color: "#4B5563",
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  modalHeader: {
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  modalMeta: {
-    color: "#6B7280",
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  infoRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  infoLabel: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  infoValue: {
-    color: "#111827",
-    fontSize: 14,
-  },
-  closeButton: {
-    marginTop: 16,
-    alignSelf: "flex-start",
-    backgroundColor: "#4F7CFF",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  closeButtonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 15,
-  },
-});

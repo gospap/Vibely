@@ -1,93 +1,107 @@
-require("dotenv").config();
-const bcrypt = require("bcrypt");
-const connectDB = require("./db");
-const { User, Store } = require("./models");
+const mongoose = require("mongoose");
+const { Event, Store } = require("./models");
 
-const stores = [
-  {
-    name: "Vibely Rooftop",
-    description:
-      "A rooftop lounge with live DJs, craft cocktails and panoramic city views.",
-    location: { lat: 37.9842, lng: 23.7283 },
-    images: [
-      "https://images.unsplash.com/photo-1518599814594-3ac4dd6b7c47?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80",
-    ],
-    ratings: { average: 4.8, count: 128 },
-  },
-  {
-    name: "Pulse Bar",
-    description:
-      "Neon-lit urban bar with premium mixers, craft spirits and late-night energy.",
-    location: { lat: 37.9766, lng: 23.7269 },
-    images: [
-      "https://images.unsplash.com/photo-1497032205916-ac775f0649ae?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1556761175-4b46a572b786?auto=format&fit=crop&w=800&q=80",
-    ],
-    ratings: { average: 4.6, count: 96 },
-  },
-  {
-    name: "Neon Lounge",
-    description:
-      "Modern hangout with cozy seating, specialty cocktails and playful lighting.",
-    location: { lat: 37.9715, lng: 23.7257 },
-    images: [
-      "https://images.unsplash.com/photo-1558980394-0d86c08722e8?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=800&q=80",
-    ],
-    ratings: { average: 4.7, count: 102 },
-  },
-  {
-    name: "Studio 21",
-    description:
-      "Creative events space for meetups, workshops and small concerts.",
-    location: { lat: 37.9743, lng: 23.7337 },
-    images: [
-      "https://images.unsplash.com/photo-1517520287167-4bbf64a00d66?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1515378791036-0648a3ef77b2?auto=format&fit=crop&w=800&q=80",
-    ],
-    ratings: { average: 4.5, count: 74 },
-  },
-  {
-    name: "Elysium Cafe",
-    description:
-      "Daytime chill cafe that turns into a mellow evening spot with chill beats.",
-    location: { lat: 37.981, lng: 23.7402 },
-    images: [
-      "https://images.unsplash.com/photo-1504754524776-8f4f37790ca0?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1444703686981-a3abbc4d4fe3?auto=format&fit=crop&w=800&q=80",
-    ],
-    ratings: { average: 4.4, count: 58 },
-  },
-];
+const MONGODB_URI =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://gospap:gospap123@vibely.rwjz7jk.mongodb.net/vibely?retryWrites=true&w=majority&appName=Vibely";
 
-async function seed() {
-  await connectDB();
+const seed = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    console.log("✅ Connected");
 
-  console.log("Clearing old store data...");
-  await Store.deleteMany({});
+    await Event.deleteMany();
 
-  console.log("Creating default owner user...");
-  const ownerPassword = await bcrypt.hash("Vibely123!", 10);
-  const owner = await User.create({
-    email: "owner@vibely.local",
-    password: ownerPassword,
-    username: "vibely-owner",
-  });
+    const stores = await Store.find();
 
-  const storeDocs = stores.map((store) => ({
-    ...store,
-    owner: owner._id,
-  }));
+    if (stores.length === 0) {
+      throw new Error("No stores found. Seed stores first!");
+    }
 
-  console.log("Seeding stores...");
-  await Store.insertMany(storeDocs);
+    const events = [
+      {
+        title: "Sunset Rooftop Sessions",
+        description:
+          "Golden hour DJ set with deep house, cocktails and Athens skyline views.",
+        startDate: new Date("2026-06-12"),
+        endDate: new Date("2026-06-12"),
+        startHour: "19:00",
+        endHour: "01:00",
+        musicGenre: "Deep House",
+        hostedBy: stores[0]._id, // Vibely Rooftop
+        images: [
+          "https://images.unsplash.com/photo-1505236858219-8359eb29e329",
+        ],
+      },
 
-  console.log("Seed completed: created", storeDocs.length, "stores.");
-  process.exit(0);
-}
+      {
+        title: "Pulse Neon Rave Night",
+        description:
+          "High energy night with techno & EDM DJs, neon lights and late crowd vibes.",
+        startDate: new Date("2026-06-14"),
+        endDate: new Date("2026-06-15"),
+        startHour: "22:30",
+        endHour: "05:00",
+        musicGenre: "Techno",
+        hostedBy: stores[1]._id, // Pulse Bar
+        images: ["https://images.unsplash.com/photo-1545128485-c400ce7b9d78"],
+      },
 
-seed().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+      {
+        title: "Neon Chill House Experience",
+        description:
+          "Smooth house beats, cocktails and relaxed neon lounge atmosphere.",
+        startDate: new Date("2026-06-18"),
+        endDate: new Date("2026-06-18"),
+        startHour: "20:00",
+        endHour: "02:00",
+        musicGenre: "House",
+        hostedBy: stores[2]._id, // Neon Lounge
+        images: [
+          "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b",
+        ],
+      },
+
+      {
+        title: "Studio 21 Live Sessions",
+        description:
+          "Indie bands, live performances and creative underground vibes.",
+        startDate: new Date("2026-06-22"),
+        endDate: new Date("2026-06-22"),
+        startHour: "18:00",
+        endHour: "00:00",
+        musicGenre: "Live / Indie",
+        hostedBy: stores[3]._id, // Studio 21
+        images: [
+          "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
+        ],
+      },
+
+      {
+        title: "Sunset Café Chill Beats",
+        description:
+          "Day-to-night transition with chill lo-fi, coffee vibes and sunset ambience.",
+        startDate: new Date("2026-06-25"),
+        endDate: new Date("2026-06-25"),
+        startHour: "17:00",
+        endHour: "23:00",
+        musicGenre: "Lo-Fi / Chill",
+        hostedBy: stores[4]._id, // Elysium Cafe
+        images: [
+          "https://images.unsplash.com/photo-1521017432531-fbd92d768814",
+        ],
+      },
+    ];
+
+    await Event.insertMany(events);
+
+    console.log("🔥 Events seeded with stores!");
+
+    process.exit();
+  } catch (err) {
+    console.error("❌ Error:", err);
+    process.exit(1);
+  }
+};
+
+seed();

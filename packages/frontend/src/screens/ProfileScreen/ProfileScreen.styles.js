@@ -111,6 +111,7 @@ export default StyleSheet.create({
   },
   actions: {
     marginTop: 8,
+    marginBottom: 40,
   },
   actionButton: {
     backgroundColor: "#4F7CFF",
