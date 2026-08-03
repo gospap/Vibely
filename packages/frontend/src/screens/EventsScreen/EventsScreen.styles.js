@@ -1,138 +1,177 @@
 import { StyleSheet } from "react-native";
-import { COLORS } from "@/styles/global";
+import { T, TAB_BAR_SPACE, SHADOW_CARD } from "@/styles/theme";
+
 export default StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: T.bg,
   },
-  card: {
-    backgroundColor: "#1a1a1a",
-    borderRadius: 16,
+
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
+    gap: 12,
+  },
+
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+  },
+
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: T.text,
+    letterSpacing: -0.5,
+  },
+
+  count: {
+    color: T.textFaint,
+    fontSize: 12.5,
+    fontWeight: "600",
+  },
+
+  chipsRow: {
+    flexGrow: 0,
     marginBottom: 12,
+  },
+
+  chips: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+
+  listContent: {
+    paddingHorizontal: 12,
+    paddingBottom: TAB_BAR_SPACE,
+  },
+
+  column: {
+    justifyContent: "space-between",
+  },
+
+  /* ---- card ---- */
+  card: {
     flex: 1,
-    marginHorizontal: 5,
+    marginHorizontal: 4,
+    marginBottom: 12,
+    borderRadius: T.radius.md,
+    backgroundColor: T.surface,
     overflow: "hidden",
-
-    // shadow iOS
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-
-    // shadow Android
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: T.border,
+    ...SHADOW_CARD,
   },
 
   image: {
     width: "100%",
-    height: 140,
+    height: 130,
+    backgroundColor: T.surfaceAlt,
+  },
+
+  dateBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: T.radius.sm,
+    backgroundColor: "rgba(0,0,0,0.72)",
+  },
+
+  dateBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+
+  goingBadge: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.accent,
+  },
+
+  goingBadgeText: {
+    color: "#04210f",
+    fontSize: 10.5,
+    fontWeight: "800",
+  },
+
+  cardBody: {
+    padding: 10,
+    gap: 4,
   },
 
   title: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: "700",
-    color: "#fff",
-    paddingHorizontal: 10,
-    paddingTop: 8,
+    color: T.text,
+    lineHeight: 19,
   },
 
-  date: {
+  store: {
     fontSize: 12,
-    color: "#aaa",
-    paddingHorizontal: 10,
+    color: T.textFaint,
+  },
+
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 6,
     marginTop: 2,
   },
 
   genre: {
-    fontSize: 12,
-    color: "#4ade80",
-    paddingHorizontal: 10,
-    marginTop: 4,
-  },
-
-  description: {
-    fontSize: 12,
-    color: "#ccc",
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    marginTop: 6,
-  },
-
-  /* =========================
-      MASONRY LAYOUT
-  ========================= */
-  masonry: {
-    flexDirection: "row",
-    padding: 5,
-  },
-
-  column: {
     flex: 1,
-  },
-
-  /* =========================
-      MODAL BACKDROP (IMPORTANT)
-  ========================= */
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-
-  /* =========================
-      MODAL CARD (BOTTOM SHEET)
-  ========================= */
-  modalCard: {
-    backgroundColor: "#1a1a1a",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 20,
-
-    // shadow
-    elevation: 10,
-  },
-
-  modalImage: {
-    width: "100%",
-    height: 200,
-    borderRadius: 16,
-  },
-
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#fff",
-    marginTop: 10,
-  },
-
-  modalDate: {
-    marginTop: 6,
-    color: "#aaa",
-    fontSize: 13,
-  },
-
-  modalGenre: {
-    marginTop: 6,
-    color: "#4ade80",
+    fontSize: 11.5,
+    color: T.accent,
     fontWeight: "600",
   },
 
-  modalDescription: {
-    marginTop: 12,
-    color: "#ddd",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  closeButton: {
-    marginTop: 18,
-    backgroundColor: "#333",
-    padding: 12,
-    borderRadius: 12,
+  attendants: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 3,
   },
 
-  closeButtonText: {
-    color: "#fff",
+  attendantsText: {
+    color: T.textFaint,
+    fontSize: 11,
     fontWeight: "700",
+  },
+
+  price: {
+    fontSize: 11.5,
+    color: T.textMuted,
+    fontWeight: "600",
+  },
+
+  loader: {
+    marginTop: 40,
+  },
+
+  footerLoader: {
+    marginVertical: 20,
+  },
+
+  endOfList: {
+    textAlign: "center",
+    color: T.textFaint,
+    fontSize: 12,
+    marginVertical: 20,
+  },
+
+  error: {
+    color: T.danger,
+    fontSize: 13,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
 });

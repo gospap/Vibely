@@ -1,32 +1,20 @@
 require("dotenv").config();
 
 const express = require("express");
+const mongoose = require("mongoose");
 const { connectDB } = require("./db");
-const { User, Event } = require("./models");
+const { User } = require("./models");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cors = require("cors");
 
+const { router: uploadsRouter, UPLOAD_ROOT } = require("./src/routes/uploads");
+
 const app = express();
-const MONGODB_URI =
-  process.env.MONGODB_URI ||
-  "mongodb+srv://gospap:gospap123@vibely.rwjz7jk.mongodb.net/vibely?retryWrites=true&w=majority&appName=Vibely";
 
-const store = MongoStore.create({
-  mongoUrl: MONGODB_URI,
-  collectionName: "session_store",
-  mongoOptions: {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  },
-});
-
-store.on("error", function (error) {
-  console.error("Session store error", error);
-});
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Photos arrive as base64 data URIs, so the default 100kb body cap is too small.
+app.use(express.json({ limit: "8mb" }));
+app.use(express.urlencoded({ extended: true, limit: "8mb" }));
 
 app.use(
   cors({
@@ -35,52 +23,75 @@ app.use(
   }),
 );
 
-connectDB().catch((err) => {
-  console.error("MongoDB connection error", err);
-  process.exit(1);
-});
+const start = async () => {
+  await connectDB();
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "supersecret",
-    resave: false,
-    saveUninitialized: false,
-    store: store,
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-      sameSite: "lax",
-      secure: false,
-      httpOnly: true,
-    },
-  }),
-);
+  // Reuse the connection mongoose already opened instead of dialing a second one.
+  const store = MongoStore.create({
+    client: mongoose.connection.getClient(),
+    collectionName: "session_store",
+  });
 
-app.use("/auth", require("./src/routes/auth"));
-app.use("/events", require("./src/routes/events"));
-app.use("/", require("./src/routes/stores"));
+  store.on("error", function (error) {
+    console.error("Session store error", error);
+  });
 
-app.get("/auth/me", async (req, res) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).json({ message: "Not authenticated" });
-  }
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "supersecret",
+      resave: false,
+      saveUninitialized: false,
+      store: store,
+      cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 7,
+        sameSite: "lax",
+        secure: false,
+        httpOnly: true,
+      },
+    }),
+  );
 
-  try {
-    const user = await User.findById(req.session.user.id).lean();
-    if (!user) {
+  app.get("/health", (req, res) => res.json({ ok: true }));
+
+  app.use("/auth", require("./src/routes/auth"));
+  app.use("/events", require("./src/routes/events"));
+  app.use("/stores", require("./src/routes/stores"));
+  app.use("/users", require("./src/routes/users"));
+  app.use("/messages", require("./src/routes/messages"));
+  app.use("/uploads", uploadsRouter);
+
+  // Serve what the upload route just wrote.
+  app.use("/uploads", express.static(UPLOAD_ROOT));
+
+  app.get("/auth/me", async (req, res) => {
+    if (!req.session?.user?.id) {
       return res.status(401).json({ message: "Not authenticated" });
     }
 
-    delete user.password;
-    delete user.hashedpassword;
-    delete user.__v;
-    user.id = user._id.toString();
+    try {
+      const user = await User.findById(req.session.user.id).lean();
+      if (!user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
 
-    return res.status(200).json({ user });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Server error" });
-  }
-});
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+      delete user.password;
+      delete user.hashedpassword;
+      delete user.__v;
+      user.id = user._id.toString();
+
+      return res.status(200).json({ user });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.listen(3000, () => {
+    console.log("Server running on http://localhost:3000");
+  });
+};
+
+start().catch((err) => {
+  console.error("Startup failed:", err.message);
+  process.exit(1);
 });

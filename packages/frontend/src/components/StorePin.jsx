@@ -1,7 +1,9 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { Star } from "lucide-react-native";
 
 export default function StorePin({ store, onPress }) {
   const thumbnail = store.images?.[0] || store.imageUrl || null;
+  const rating = store.ratings?.average;
 
   return (
     <TouchableOpacity
@@ -16,10 +18,18 @@ export default function StorePin({ store, onPress }) {
           <View style={styles.pinIcon} />
         )}
       </View>
+
       <View style={styles.labelContainer}>
         <Text numberOfLines={1} style={styles.labelText}>
           {store.name}
         </Text>
+
+        {rating ? (
+          <View style={styles.rating}>
+            <Star size={9} color="#fbbf24" fill="#fbbf24" />
+            <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+          </View>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -54,6 +64,9 @@ const styles = StyleSheet.create({
   },
   labelContainer: {
     marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -63,6 +76,16 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 11,
     fontWeight: "700",
-    maxWidth: 120,
+    maxWidth: 110,
+  },
+  rating: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  ratingText: {
+    color: "#fbbf24",
+    fontSize: 10,
+    fontWeight: "800",
   },
 });

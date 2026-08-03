@@ -87,7 +87,11 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      // refresh re-reads /auth/me, so an edit made on the profile screen shows
+      // up everywhere the user object is consumed.
+      value={{ user, loading, login, register, logout, refresh: checkAuth }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -1,83 +1,94 @@
 import { StyleSheet } from "react-native";
+import { T } from "@/styles/theme";
 
 export default StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
 
-  routeCard: {
-    position: "absolute",
-    top: 80,
-    left: 20,
-    right: 20,
-    backgroundColor: "white",
-    padding: 14,
-    borderRadius: 16,
-    elevation: 5,
-  },
-  focusButton: {
-    position: "absolute",
-    right: 20,
-    bottom: 120,
-    backgroundColor: "white",
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
+  loadingContainer: {
+    flex: 1,
     alignItems: "center",
-    elevation: 5,
+    justifyContent: "center",
+    backgroundColor: T.bg,
   },
 
-  focusText: {
-    fontSize: 22,
+  /* ---- floating search + category filters ---- */
+  searchOverlay: {
+    position: "absolute",
+    top: 54,
+    left: 0,
+    right: 0,
+    gap: 10,
+  },
+
+  search: {
+    marginHorizontal: 16,
+    backgroundColor: "rgba(23,23,25,0.94)",
+    borderColor: T.borderStrong,
+    height: 46,
+  },
+
+  chips: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+
+  resultCount: {
+    alignSelf: "flex-start",
+    marginLeft: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: T.radius.pill,
+    backgroundColor: "rgba(23,23,25,0.94)",
+  },
+
+  resultCountText: {
+    color: T.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  /* ---- navigation card ---- */
+  routeCard: {
+    position: "absolute",
+    bottom: 130,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(23,23,25,0.96)",
+    borderWidth: 1,
+    borderColor: T.borderStrong,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: T.radius.md,
+    elevation: 6,
+  },
+
+  routeStats: {
+    flexDirection: "row",
+    gap: 18,
   },
 
   routeText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
+    color: T.text,
   },
 
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-
-  modalCard: {
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: "hidden",
-  },
-
-  modalImage: {
-    width: "100%",
-    height: 220,
-  },
-
-  modalContent: {
-    padding: 20,
-  },
-
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-  },
-
-  modalDescription: {
-    marginTop: 10,
-    color: "#555",
-  },
-
-  closeButton: {
-    marginTop: 16,
-    backgroundColor: "#4F7CFF",
-    padding: 12,
-    borderRadius: 12,
+  focusButton: {
+    position: "absolute",
+    right: 16,
+    bottom: 200,
+    backgroundColor: "rgba(23,23,25,0.96)",
+    borderWidth: 1,
+    borderColor: T.borderStrong,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    justifyContent: "center",
     alignItems: "center",
-  },
-
-  closeButtonText: {
-    color: "#fff",
-    fontWeight: "700",
+    elevation: 5,
   },
 });

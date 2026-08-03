@@ -9,15 +9,19 @@ import {
   Dimensions,
 } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import { House, CalendarDays, Users, User } from "lucide-react-native";
 
 import HomeScreen from "@/screens/HomeScreen/HomeScreen";
 import EventsScreen from "@/screens/EventsScreen/EventsScreen";
 import CommunityScreen from "@/screens/CommunityScreen/CommunityScreen";
+import ChatScreen from "@/screens/ChatScreen/ChatScreen";
+import UserProfileScreen from "@/screens/UserProfileScreen/UserProfileScreen";
 import ProfileScreen from "@/screens/ProfileScreen/ProfileScreen";
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 const TABS = [
   { name: "Home", label: "Χάρτης", Icon: House },
   { name: "Events", label: "Events", Icon: CalendarDays },
@@ -204,7 +208,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function AppNavigator() {
+function TabsNavigator() {
   return (
     <Tab.Navigator
       tabBar={(props) => <LiquidGlassTabBar {...props} />}
@@ -223,5 +227,17 @@ export default function AppNavigator() {
         return <Tab.Screen key={name} name={name} component={screens[name]} />;
       })}
     </Tab.Navigator>
+  );
+}
+
+// The tabs live inside a stack so a chat thread or someone's profile can be
+// pushed over them full screen, the way Instagram does it.
+export default function AppNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Tabs" component={TabsNavigator} />
+      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+    </Stack.Navigator>
   );
 }
