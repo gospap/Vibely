@@ -5,19 +5,45 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
+import * as Speech from "expo-speech";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { Crosshair, X } from "lucide-react-native";
+import {
+  ArrowUp,
+  ArrowUpLeft,
+  ArrowUpRight,
+  Clock3,
+  CornerUpLeft,
+  CornerUpRight,
+  Crosshair,
+  MapPin,
+  Navigation as NavigationIcon,
+  RotateCcw,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react-native";
 
-import StorePin from "../../components/StorePin";
+import StorePin from "@/components/StorePin";
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
 import StoreSheet from "./StoreSheet";
-import { storesService, CATEGORIES } from "@/services/stores.service";
+import { API_URL } from "@/constants/api";
+import { CATEGORIES } from "@/constants/categories";
+import { toQuery } from "@/utils/query";
 import { T } from "@/styles/theme";
 import styles from "./HomeScreen.styles";
+import {
+  extractSteps,
+  formatDistance,
+  isOffRoute,
+  resolveManeuver,
+  spokenPhrase,
+  SPEECH_THRESHOLDS,
+} from "@/utils/navigation";
 
 // Where the map opens when location permission is refused, so the screen is
 // never blank: the middle of Thessaloniki, zoomed out enough to show the city.
@@ -28,36 +54,22 @@ const FALLBACK_REGION = {
   longitudeDelta: 0.06,
 };
 
-// Metres between two coordinates.
-const haversineDistance = (a, b) => {
-  const toRad = (x) => (x * Math.PI) / 180;
-
-  const R = 6371e3;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLon = toRad(b.longitude - a.longitude);
-
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-
-  const x =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-
-  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-};
-
-// More than 25m off the drawn line means the driver missed a turn.
-const isOffRoute = (current, path) => {
-  if (!path || path.length === 0) return false;
-
-  let minDist = Infinity;
-
-  for (let i = 0; i < path.length; i++) {
-    const d = haversineDistance(current, path[i]);
-    if (d < minDist) minDist = d;
-  }
-
-  return minDist > 25;
+// The routing API numbers its maneuvers; these are the arrows for each one.
+const MANEUVER_ICONS = {
+  0: CornerUpLeft, // left
+  1: CornerUpRight, // right
+  2: CornerUpLeft, // sharp left
+  3: CornerUpRight, // sharp right
+  4: ArrowUpLeft, // slight left
+  5: ArrowUpRight, // slight right
+  6: ArrowUp, // straight
+  7: RotateCcw, // enter roundabout
+  8: RotateCcw, // exit roundabout
+  9: RotateCcw, // u-turn
+  10: MapPin, // arrive
+  11: NavigationIcon, // depart
+  12: ArrowUpLeft, // keep left
+  13: ArrowUpRight, // keep right
 };
 
 export default function HomeScreen() {
@@ -80,6 +92,8 @@ export default function HomeScreen() {
   const [distance, setDistance] = useState(null);
   const [navigating, setNavigating] = useState(false);
   const [followUser, setFollowUser] = useState(true);
+  const [maneuver, setManeuver] = useState(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
 
   // The location subscription is created once, so the values it reads have to
   // live in refs — otherwise the callback keeps looking at the first render.
@@ -89,6 +103,12 @@ export default function HomeScreen() {
   const lastRerouteRef = useRef(0);
   const regionRef = useRef(null);
   const destinationRef = useRef(null);
+  const stepsRef = useRef([]);
+  const voiceEnabledRef = useRef(true);
+
+  // Which distance warnings have already been spoken for the maneuver in play,
+  // so the phone says "σε 150 μέτρα, στρίψτε δεξιά" once and not every 1.5s.
+  const spokenRef = useRef({ key: null, thresholds: new Set() });
 
   useEffect(() => {
     followUserRef.current = followUser;
@@ -102,6 +122,13 @@ export default function HomeScreen() {
   useEffect(() => {
     regionRef.current = region;
   }, [region]);
+  useEffect(() => {
+    voiceEnabledRef.current = voiceEnabled;
+    if (!voiceEnabled) Speech.stop();
+  }, [voiceEnabled]);
+
+  // Never leave a sentence playing after the screen is gone.
+  useEffect(() => () => Speech.stop(), []);
 
   /* =========================
      LOCATION
@@ -152,14 +179,17 @@ export default function HomeScreen() {
           }
 
           if (navigatingRef.current && routeCoordsRef.current.length > 0) {
-            const now = Date.now();
+            if (isOffRoute(coords, routeCoordsRef.current)) {
+              // The steps belong to a route the driver has left, so the banner
+              // is frozen on purpose until the new one lands.
+              const now = Date.now();
 
-            if (
-              isOffRoute(coords, routeCoordsRef.current) &&
-              now - lastRerouteRef.current > 10000
-            ) {
-              lastRerouteRef.current = now;
-              getDirections(destinationRef.current);
+              if (now - lastRerouteRef.current > 10000) {
+                lastRerouteRef.current = now;
+                getDirections(destinationRef.current);
+              }
+            } else {
+              trackManeuver(coords);
             }
           }
         },
@@ -170,6 +200,11 @@ export default function HomeScreen() {
       cancelled = true;
       sub?.remove();
     };
+    // getDirections and trackManeuver are deliberately not dependencies: both
+    // read their inputs from refs, so the copies captured here stay correct,
+    // and re-listing them would tear down and rebuild the GPS subscription on
+    // every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* =========================
@@ -177,13 +212,19 @@ export default function HomeScreen() {
   ========================= */
   const loadStores = useCallback(async () => {
     try {
-      const data = await storesService.list({
+      const params = toQuery({
         q: query.trim() || undefined,
         category: category === "all" ? undefined : category,
         lat: hasLocation ? region?.latitude : undefined,
         lng: hasLocation ? region?.longitude : undefined,
       });
-      setStores(data);
+
+      const res = await fetch(`${API_URL}/stores${params}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+
+      setStores(await res.json());
     } catch (err) {
       console.log(err.message);
     } finally {
@@ -226,6 +267,51 @@ export default function HomeScreen() {
   }, [route.params?.focusStoreId, stores, navigation]);
 
   /* =========================
+     VOICE
+  ========================= */
+  // The instruction text already arrives in Greek, so it only has to be read
+  // out in a Greek voice. Anything still playing is cut off first: a stale
+  // "στρίψτε δεξιά" queued behind the current turn is worse than silence.
+  const say = (text) => {
+    if (!voiceEnabledRef.current || !text) return;
+
+    Speech.stop();
+    Speech.speak(text, { language: "el-GR", rate: 1.0 });
+  };
+
+  /* =========================
+     TURN-BY-TURN
+  ========================= */
+  const trackManeuver = (coords) => {
+    const next = resolveManeuver(
+      stepsRef.current,
+      routeCoordsRef.current,
+      coords,
+    );
+    if (!next) return;
+
+    setManeuver(next);
+
+    // A different turn is now the one ahead — start its warnings from scratch.
+    if (spokenRef.current.key !== next.key) {
+      spokenRef.current = { key: next.key, thresholds: new Set() };
+    }
+
+    const { thresholds } = spokenRef.current;
+    const crossed = SPEECH_THRESHOLDS.filter(
+      (t) => next.distance <= t && !thresholds.has(t),
+    );
+
+    if (!crossed.length) return;
+
+    // Mark every band the driver is already inside, then announce only the
+    // tightest one — coming in fast past several at once should say "τώρα",
+    // not recite "σε 400 μέτρα" after the turn has arrived.
+    crossed.forEach((t) => thresholds.add(t));
+    say(spokenPhrase(Math.min(...crossed), next.instruction));
+  };
+
+  /* =========================
      ROUTING
   ========================= */
   const getDirections = async (destination) => {
@@ -234,22 +320,63 @@ export default function HomeScreen() {
 
     destinationRef.current = destination;
 
+    // Without a key the routing call comes back 403 and the button looks dead,
+    // which is a miserable thing to debug from the outside.
+    if (!process.env.EXPO_PUBLIC_ORS_API_KEY) {
+      Alert.alert(
+        "Λείπει το κλειδί πλοήγησης",
+        "Πρόσθεσε το EXPO_PUBLIC_ORS_API_KEY στο .env και κάνε restart τον Metro.",
+      );
+      return;
+    }
+
     try {
-      const url =
-        `https://api.openrouteservice.org/v2/directions/driving-car` +
-        `?api_key=${process.env.EXPO_PUBLIC_ORS_API_KEY}` +
-        `&start=${from.longitude},${from.latitude}` +
-        `&end=${destination.longitude},${destination.latitude}`;
+      // The POST form of the endpoint is the one that takes options — the bare
+      // GET only accepts the two coordinates, and without `language` the
+      // maneuvers come back in English inside an otherwise Greek app.
+      const res = await fetch(
+        "https://api.openrouteservice.org/v2/directions/driving-car/geojson",
+        {
+          method: "POST",
+          headers: {
+            Authorization: process.env.EXPO_PUBLIC_ORS_API_KEY,
+            "Content-Type": "application/json",
+            Accept: "application/geo+json",
+          },
+          body: JSON.stringify({
+            coordinates: [
+              [from.longitude, from.latitude],
+              [destination.longitude, destination.latitude],
+            ],
+            // Greek is "gr" here, not the "el" you would expect.
+            language: "gr",
+            instructions: true,
+            units: "m",
+          }),
+        },
+      );
 
-      const res = await fetch(url);
       const data = await res.json();
+      const feature = data.features?.[0];
 
-      const coords = data.features[0].geometry.coordinates.map((c) => ({
+      if (!feature) {
+        // ORS nests its complaint differently depending on what went wrong.
+        throw new Error(
+          data.error?.message ?? data.error ?? `Σφάλμα ${res.status}`,
+        );
+      }
+
+      const coords = feature.geometry.coordinates.map((c) => ({
         latitude: c[1],
         longitude: c[0],
       }));
 
-      const summary = data.features[0].properties.summary;
+      const summary = feature.properties.summary;
+      const steps = extractSteps(feature);
+
+      stepsRef.current = steps;
+      routeCoordsRef.current = coords;
+      spokenRef.current = { key: null, thresholds: new Set() };
 
       setRouteCoords(coords);
       setDistance(summary.distance / 1000);
@@ -257,21 +384,38 @@ export default function HomeScreen() {
       setNavigating(true);
       setFollowUser(false);
 
+      const first = resolveManeuver(steps, coords, from);
+      setManeuver(first);
+
+      // Read the departure instruction out immediately. Waiting for the first
+      // distance warning would leave the driver in silence when the opening
+      // leg is a couple of kilometres long.
+      if (first) {
+        spokenRef.current = { key: first.key, thresholds: new Set() };
+        say(steps[0]?.instruction ?? first.instruction);
+      }
+
       mapRef.current?.fitToCoordinates(coords, {
         edgePadding: { top: 140, right: 50, bottom: 160, left: 50 },
         animated: true,
       });
     } catch (e) {
-      console.log(e);
+      Alert.alert("Η πλοήγηση απέτυχε", e.message);
     }
   };
 
   const stopNavigation = () => {
+    Speech.stop();
+
     setNavigating(false);
     setRouteCoords([]);
     setEta(null);
     setDistance(null);
+    setManeuver(null);
+
     destinationRef.current = null;
+    stepsRef.current = [];
+    spokenRef.current = { key: null, thresholds: new Set() };
   };
 
   const startNavigationTo = (store) => {
@@ -329,8 +473,35 @@ export default function HomeScreen() {
         })}
       </MapView>
 
+      {/* ---- upcoming turn: takes the top slot off the search while driving ---- */}
+      {navigating && maneuver ? (
+        <View style={styles.maneuverCard}>
+          <View style={styles.maneuverIcon}>
+            {React.createElement(MANEUVER_ICONS[maneuver.type] ?? ArrowUp, {
+              size: 26,
+              color: T.text,
+              strokeWidth: 2.4,
+            })}
+          </View>
+
+          <View style={styles.maneuverBody}>
+            <Text style={styles.maneuverDistance}>
+              {formatDistance(maneuver.distance)}
+            </Text>
+            <Text style={styles.maneuverText} numberOfLines={2}>
+              {maneuver.instruction}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
       {/* ---- search + filters ---- */}
-      <View style={styles.searchOverlay} pointerEvents="box-none">
+      {/* Hidden rather than unmounted while driving, so the query and the
+          selected chip are still there when navigation ends. */}
+      <View
+        style={[styles.searchOverlay, navigating && styles.hidden]}
+        pointerEvents={navigating ? "none" : "box-none"}
+      >
         <SearchField
           value={query}
           onChangeText={setQuery}
@@ -381,15 +552,32 @@ export default function HomeScreen() {
       {navigating ? (
         <View style={styles.routeCard}>
           <View style={styles.routeStats}>
-            <Text style={styles.routeText}>
-              🚗 {distance?.toFixed(1)} χλμ
-            </Text>
-            <Text style={styles.routeText}>⏱ {eta?.toFixed(0)} λεπτά</Text>
+            <View style={styles.routeStat}>
+              <NavigationIcon size={16} color={T.textMuted} strokeWidth={2.2} />
+              <Text style={styles.routeText}>{distance?.toFixed(1)} χλμ</Text>
+            </View>
+            <View style={styles.routeStat}>
+              <Clock3 size={16} color={T.textMuted} strokeWidth={2.2} />
+              <Text style={styles.routeText}>{eta?.toFixed(0)} λεπτά</Text>
+            </View>
           </View>
 
-          <TouchableOpacity onPress={stopNavigation} hitSlop={10}>
-            <X size={18} color={T.textMuted} strokeWidth={2.4} />
-          </TouchableOpacity>
+          <View style={styles.routeActions}>
+            <TouchableOpacity
+              onPress={() => setVoiceEnabled((on) => !on)}
+              hitSlop={10}
+            >
+              {voiceEnabled ? (
+                <Volume2 size={18} color={T.text} strokeWidth={2.4} />
+              ) : (
+                <VolumeX size={18} color={T.textFaint} strokeWidth={2.4} />
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={stopNavigation} hitSlop={10}>
+              <X size={18} color={T.textMuted} strokeWidth={2.4} />
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 

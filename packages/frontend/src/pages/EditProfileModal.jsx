@@ -15,9 +15,8 @@ import { X, Camera } from "lucide-react-native";
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import Chip from "@/components/Chip";
-import { usersService } from "@/services/users.service";
-import { eventsService } from "@/services/events.service";
-import { uploadsService } from "@/services/uploads.service";
+import { API_URL } from "@/constants/api";
+import { pickAndUpload } from "@/utils/upload";
 import { T } from "@/styles/theme";
 import styles from "./EditProfileModal.styles";
 
@@ -75,15 +74,16 @@ export default function EditProfileModal({ visible, user, onClose, onSaved }) {
     setAvatar(user.profileImageUrl ?? null);
     setGenres(user.favouriteGenres ?? []);
 
-    eventsService.genres().then(setAllGenres).catch(() => setAllGenres([]));
+    fetch(`${API_URL}/events/genres`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setAllGenres)
+      .catch(() => setAllGenres([]));
   }, [visible, user]);
 
   const pickAvatar = async () => {
     setUploading(true);
     try {
-      const url = await uploadsService.pickAndUpload("avatars", {
-        allowsEditing: true,
-      });
+      const url = await pickAndUpload("avatars", { allowsEditing: true });
       if (url) setAvatar(url);
     } catch (err) {
       Alert.alert("Σφάλμα", err.message);
@@ -116,14 +116,21 @@ export default function EditProfileModal({ visible, user, onClose, onSaved }) {
 
     setSaving(true);
     try {
-      await usersService.updateProfile({
-        username: name,
-        bio: bio.trim(),
-        gender: gender ?? undefined,
-        dateOfBirth,
-        profileImageUrl: avatar ?? undefined,
-        favouriteGenres: genres,
+      const res = await fetch(`${API_URL}/users/me`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: name,
+          bio: bio.trim(),
+          gender: gender ?? undefined,
+          dateOfBirth,
+          profileImageUrl: avatar ?? undefined,
+          favouriteGenres: genres,
+        }),
       });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+
       onSaved();
     } catch (err) {
       Alert.alert("Δεν αποθηκεύτηκε", err.message);

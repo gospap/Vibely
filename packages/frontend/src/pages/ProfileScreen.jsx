@@ -14,14 +14,26 @@ import {
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { Pencil, LogOut, CalendarDays, Users } from "lucide-react-native";
 
-import { AuthContext } from "../../context/AuthContext";
+import { AuthContext } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
-import TriangleLoader from "../../components/TriangleLoader";
+import TriangleLoader from "@/components/TriangleLoader";
 import EditProfileModal from "./EditProfileModal";
-import { usersService } from "@/services/users.service";
+import { API_URL } from "@/constants/api";
 import { formatEventDate, formatFullDate } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./ProfileScreen.styles";
+
+// Session cookie or the API treats every call as a stranger.
+const call = async (path, { method = "GET", body } = {}) => {
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+  return res.json();
+};
 
 // Toggle rows are all the same shape, so the notification block is data.
 const NOTIFICATION_ROWS = [
@@ -51,9 +63,9 @@ export default function ProfileScreen() {
   const load = useCallback(async () => {
     try {
       const [preferences, events, mates] = await Promise.all([
-        usersService.preferences(),
-        usersService.myEvents(),
-        usersService.friends(),
+        call("/users/me/preferences"),
+        call("/users/me/events"),
+        call("/users/me/friends"),
       ]);
       setPrefs(preferences);
       setMyEvents(events);
@@ -81,8 +93,9 @@ export default function ProfileScreen() {
     }));
 
     try {
-      const saved = await usersService.savePreferences({
-        notifications: { [key]: value },
+      const saved = await call("/users/me/preferences", {
+        method: "PUT",
+        body: { notifications: { [key]: value } },
       });
       setPrefs(saved);
     } catch (err) {
@@ -96,8 +109,9 @@ export default function ProfileScreen() {
     setPrefs((p) => ({ ...p, privacy: { ...p.privacy, [key]: value } }));
 
     try {
-      const saved = await usersService.savePreferences({
-        privacy: { [key]: value },
+      const saved = await call("/users/me/preferences", {
+        method: "PUT",
+        body: { privacy: { [key]: value } },
       });
       setPrefs(saved);
     } catch (err) {

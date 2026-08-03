@@ -23,7 +23,7 @@ import {
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import RatingStars from "@/components/RatingStars";
-import { eventsService } from "@/services/events.service";
+import { API_URL } from "@/constants/api";
 import { formatFullDate, formatPrice } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./EventSheet.styles";
@@ -46,8 +46,11 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
     let cancelled = false;
     setLoading(true);
 
-    eventsService
-      .get(eventId)
+    fetch(`${API_URL}/events/${eventId}`, { credentials: "include" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+        return res.json();
+      })
       .then((data) => !cancelled && setEvent(data))
       .catch((err) => !cancelled && Alert.alert("Σφάλμα", err.message))
       .finally(() => !cancelled && setLoading(false));
@@ -60,10 +63,13 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
   const toggleAttend = async () => {
     setBusy(true);
     try {
-      const result = event.attending
-        ? await eventsService.leave(event._id)
-        : await eventsService.attend(event._id);
+      const res = await fetch(`${API_URL}/events/${event._id}/attend`, {
+        method: event.attending ? "DELETE" : "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
 
+      const result = await res.json();
       setEvent((prev) => ({ ...prev, ...result }));
       onAttendanceChange?.(event._id, result);
     } catch (err) {

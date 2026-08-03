@@ -16,8 +16,9 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { ChevronLeft, ImagePlus, Send } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
-import { messagesService } from "@/services/messages.service";
-import { uploadsService } from "@/services/uploads.service";
+import { API_URL } from "@/constants/api";
+import { toQuery } from "@/utils/query";
+import { pickAndUpload } from "@/utils/upload";
 import { formatClock, formatFullDate } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./ChatScreen.styles";
@@ -25,6 +26,18 @@ import styles from "./ChatScreen.styles";
 const PAGE_SIZE = 30;
 // No websockets here, so the thread polls while it is on screen.
 const POLL_MS = 5000;
+
+// Session cookie or the API treats every call as a stranger.
+const call = async (path, { method = "GET", body } = {}) => {
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+  return res.json();
+};
 
 export default function ChatScreen() {
   const navigation = useNavigation();
@@ -43,13 +56,10 @@ export default function ChatScreen() {
   const listRef = useRef(null);
 
   const fetchPage = useCallback(
-    async (pageNumber) => {
-      const data = await messagesService.thread(userId, {
-        page: pageNumber,
-        limit: PAGE_SIZE,
-      });
-      return data;
-    },
+    async (pageNumber) =>
+      call(
+        `/messages/${userId}${toQuery({ page: pageNumber, limit: PAGE_SIZE })}`,
+      ),
     [userId],
   );
 
@@ -66,7 +76,7 @@ export default function ChatScreen() {
         setHasMore(data.hasMore);
         setPage(1);
 
-        await messagesService.markRead(userId);
+        await call(`/messages/${userId}/read`, { method: "POST" });
       } catch (err) {
         if (!cancelled) Alert.alert("Σφάλμα", err.message);
       } finally {
@@ -92,7 +102,7 @@ export default function ChatScreen() {
 
           // Anything new from them is being looked at right now.
           if (incoming.some((m) => !m.mine)) {
-            messagesService.markRead(userId).catch(() => {});
+            call(`/messages/${userId}/read`, { method: "POST" }).catch(() => {});
           }
 
           return [...incoming, ...prev];
@@ -129,7 +139,10 @@ export default function ChatScreen() {
   const send = async ({ text, imageUrl }) => {
     setSending(true);
     try {
-      const sent = await messagesService.send(userId, { text, imageUrl });
+      const sent = await call(`/messages/${userId}`, {
+        method: "POST",
+        body: { text, imageUrl },
+      });
       setMessages((prev) => [sent, ...prev]);
       setDraft("");
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
@@ -149,7 +162,7 @@ export default function ChatScreen() {
   const onPickPhoto = async () => {
     setUploading(true);
     try {
-      const url = await uploadsService.pickAndUpload("chat");
+      const url = await pickAndUpload("chat");
       if (url) await send({ imageUrl: url });
     } catch (err) {
       Alert.alert("Σφάλμα", err.message);

@@ -48,6 +48,50 @@ export default StyleSheet.create({
     fontWeight: "600",
   },
 
+  hidden: { display: "none" },
+
+  /* ---- upcoming turn ---- */
+  maneuverCard: {
+    position: "absolute",
+    top: 54,
+    left: 16,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "rgba(23,23,25,0.96)",
+    borderWidth: 1,
+    borderColor: T.borderStrong,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: T.radius.md,
+    elevation: 6,
+  },
+
+  maneuverIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: T.primarySoft,
+  },
+
+  maneuverBody: { flex: 1 },
+
+  maneuverDistance: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: T.text,
+  },
+
+  maneuverText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: T.textMuted,
+    marginTop: 2,
+  },
+
   /* ---- navigation card ---- */
   routeCard: {
     position: "absolute",
@@ -68,12 +112,29 @@ export default StyleSheet.create({
 
   routeStats: {
     flexDirection: "row",
-    gap: 18,
+    flexWrap: "wrap",
+    gap: 10,
+  },
+
+  routeStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+
+  routeActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
   },
 
   routeText: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
     color: T.text,
   },
 

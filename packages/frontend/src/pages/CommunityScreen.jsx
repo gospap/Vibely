@@ -15,8 +15,8 @@ import Avatar from "@/components/Avatar";
 import SearchField from "@/components/SearchField";
 import UserRow from "@/components/UserRow";
 import EmptyState from "@/components/EmptyState";
-import { usersService } from "@/services/users.service";
-import { messagesService } from "@/services/messages.service";
+import { API_URL } from "@/constants/api";
+import { toQuery } from "@/utils/query";
 import { formatTimeAgo } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./CommunityScreen.styles";
@@ -26,6 +26,16 @@ const TABS = [
   { key: "requests", label: "Αιτήματα", Icon: UserPlus },
   { key: "friends", label: "Φίλοι", Icon: Users },
 ];
+
+// Session cookie or the API treats every call as a stranger.
+const call = async (path, method = "GET") => {
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+  return res.json();
+};
 
 export default function CommunityScreen() {
   const navigation = useNavigation();
@@ -48,9 +58,9 @@ export default function CommunityScreen() {
   const load = useCallback(async () => {
     try {
       const [convos, reqs, mates] = await Promise.all([
-        messagesService.conversations(),
-        usersService.requests(),
-        usersService.friends(),
+        call("/messages/conversations"),
+        call("/users/me/requests"),
+        call("/users/me/friends"),
       ]);
       setConversations(convos);
       setRequests(reqs);
@@ -89,7 +99,9 @@ export default function CommunityScreen() {
 
     searchTimer.current = setTimeout(async () => {
       try {
-        const { items } = await usersService.search({ q: term, limit: 30 });
+        const { items } = await call(
+          `/users/search${toQuery({ q: term, limit: 30 })}`,
+        );
         setResults(items);
       } catch {
         setResults([]);
@@ -127,12 +139,14 @@ export default function CommunityScreen() {
 
     if (relation === "none") {
       setRelation(_id, "requested");
-      return withBusy(_id, () => usersService.sendRequest(_id));
+      return withBusy(_id, () => call(`/users/${_id}/friend-request`, "POST"));
     }
 
     if (relation === "incoming") {
       setRelation(_id, "friends");
-      return withBusy(_id, () => usersService.accept(_id));
+      return withBusy(_id, () =>
+        call(`/users/${_id}/friend-request/accept`, "POST"),
+      );
     }
   };
 
@@ -151,7 +165,7 @@ export default function CommunityScreen() {
     const { user, lastMessage, unread } = item;
 
     const preview = lastMessage
-      ? `${lastMessage.mine ? "Εσύ: " : ""}${lastMessage.text || "📷 Φωτογραφία"}`
+      ? `${lastMessage.mine ? "Εσύ: " : ""}${lastMessage.text || "Φωτογραφία"}`
       : "Ξεκίνα τη συζήτηση";
 
     return (
@@ -232,10 +246,14 @@ export default function CommunityScreen() {
             secondaryLabel="Απόρριψη"
             onPress={() => openProfile(item.user)}
             onPrimary={() =>
-              withBusy(item.user._id, () => usersService.accept(item.user._id))
+              withBusy(item.user._id, () =>
+                call(`/users/${item.user._id}/friend-request/accept`, "POST"),
+              )
             }
             onSecondary={() =>
-              withBusy(item.user._id, () => usersService.reject(item.user._id))
+              withBusy(item.user._id, () =>
+                call(`/users/${item.user._id}/friend-request/reject`, "POST"),
+              )
             }
           />
         ),
@@ -322,7 +340,9 @@ export default function CommunityScreen() {
                   color={active ? T.text : T.textFaint}
                   strokeWidth={2.2}
                 />
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                <Text
+                  style={[styles.tabLabel, active && styles.tabLabelActive]}
+                >
                   {label}
                 </Text>
                 {count > 0 ? (

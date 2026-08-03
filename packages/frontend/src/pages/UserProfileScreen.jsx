@@ -13,10 +13,17 @@ import { ChevronLeft, MessageCircle, UserPlus, UserMinus, Clock } from "lucide-r
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
-import { usersService } from "@/services/users.service";
+import { API_URL } from "@/constants/api";
 import { formatFullDate } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./UserProfileScreen.styles";
+
+// Session cookie or the API treats every call as a stranger.
+const call = async (path, method = "GET") => {
+  const res = await fetch(`${API_URL}${path}`, { method, credentials: "include" });
+  if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+  return res.json();
+};
 
 export default function UserProfileScreen() {
   const navigation = useNavigation();
@@ -29,8 +36,7 @@ export default function UserProfileScreen() {
   useEffect(() => {
     let cancelled = false;
 
-    usersService
-      .get(userId)
+    call(`/users/${userId}`)
       .then((data) => !cancelled && setUser(data))
       .catch((err) => !cancelled && Alert.alert("Σφάλμα", err.message))
       .finally(() => !cancelled && setLoading(false));
@@ -58,7 +64,8 @@ export default function UserProfileScreen() {
       {
         text: "Διαγραφή",
         style: "destructive",
-        onPress: () => act(() => usersService.unfriend(userId), "none"),
+        onPress: () =>
+          act(() => call(`/users/${userId}/friend`, "DELETE"), "none"),
       },
     ]);
 
@@ -78,19 +85,28 @@ export default function UserProfileScreen() {
       label: "Αίτημα φιλίας",
       icon: UserPlus,
       variant: "primary",
-      onPress: () => act(() => usersService.sendRequest(userId), "requested"),
+      onPress: () =>
+        act(
+          () => call(`/users/${userId}/friend-request`, "POST"),
+          "requested",
+        ),
     },
     requested: {
       label: "Ακύρωση αιτήματος",
       icon: Clock,
       variant: "secondary",
-      onPress: () => act(() => usersService.cancelRequest(userId), "none"),
+      onPress: () =>
+        act(() => call(`/users/${userId}/friend-request`, "DELETE"), "none"),
     },
     incoming: {
       label: "Αποδοχή αιτήματος",
       icon: UserPlus,
       variant: "primary",
-      onPress: () => act(() => usersService.accept(userId), "friends"),
+      onPress: () =>
+        act(
+          () => call(`/users/${userId}/friend-request/accept`, "POST"),
+          "friends",
+        ),
     },
     friends: {
       label: "Μήνυμα",

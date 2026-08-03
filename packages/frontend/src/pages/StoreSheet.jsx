@@ -24,7 +24,7 @@ import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import RatingStars from "@/components/RatingStars";
 import PhotoCarousel from "@/components/PhotoCarousel";
-import { storesService } from "@/services/stores.service";
+import { API_URL } from "@/constants/api";
 import {
   formatEventDate,
   formatTimeAgo,
@@ -69,7 +69,16 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
     let cancelled = false;
     setLoading(true);
 
-    Promise.all([storesService.get(storeId), storesService.events(storeId)])
+    const load = async (path) => {
+      const res = await fetch(`${API_URL}${path}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+      return res.json();
+    };
+
+    Promise.all([
+      load(`/stores/${storeId}`),
+      load(`/stores/${storeId}/events`),
+    ])
       .then(([detail, upcoming]) => {
         if (cancelled) return;
         setStore(detail);
@@ -91,10 +100,18 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
 
     setSavingReview(true);
     try {
-      const { review, ratings } = await storesService.review(storeId, {
-        rating: draftRating,
-        comment: draftComment.trim(),
+      const res = await fetch(`${API_URL}/stores/${storeId}/reviews`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rating: draftRating,
+          comment: draftComment.trim(),
+        }),
       });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+
+      const { review, ratings } = await res.json();
 
       // Swap my review into the visible list rather than refetching the sheet.
       setStore((prev) => ({
@@ -116,7 +133,13 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
   const toggleSave = async () => {
     setSaved((prev) => !prev);
     try {
-      const { saved: next } = await storesService.toggleSave(storeId);
+      const res = await fetch(`${API_URL}/stores/${storeId}/save`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+
+      const { saved: next } = await res.json();
       setSaved(next);
     } catch {
       setSaved((prev) => !prev);

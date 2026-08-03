@@ -16,7 +16,8 @@ import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
 import EmptyState from "@/components/EmptyState";
 import EventSheet from "./EventSheet";
-import { eventsService } from "@/services/events.service";
+import { API_URL } from "@/constants/api";
+import { toQuery } from "@/utils/query";
 import { formatEventDate, formatPrice } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./EventsScreen.styles";
@@ -45,7 +46,10 @@ export default function EventsScreen() {
   const requestId = useRef(0);
 
   useEffect(() => {
-    eventsService.genres().then(setGenres).catch(() => setGenres([]));
+    fetch(`${API_URL}/events/genres`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setGenres)
+      .catch(() => setGenres([]));
   }, []);
 
   useEffect(() => {
@@ -57,13 +61,19 @@ export default function EventsScreen() {
     async (pageNumber) => {
       const id = ++requestId.current;
 
-      const data = await eventsService.list({
+      const params = toQuery({
         page: pageNumber,
         limit: PAGE_SIZE,
         genre: genre === "all" ? undefined : genre,
         q: debouncedQuery || undefined,
       });
 
+      const res = await fetch(`${API_URL}/events${params}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Σφάλμα ${res.status}`);
+
+      const data = await res.json();
       return { data, fresh: id === requestId.current };
     },
     [genre, debouncedQuery],

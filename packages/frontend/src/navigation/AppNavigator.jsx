@@ -13,12 +13,12 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
 import { House, CalendarDays, Users, User } from "lucide-react-native";
 
-import HomeScreen from "@/screens/HomeScreen/HomeScreen";
-import EventsScreen from "@/screens/EventsScreen/EventsScreen";
-import CommunityScreen from "@/screens/CommunityScreen/CommunityScreen";
-import ChatScreen from "@/screens/ChatScreen/ChatScreen";
-import UserProfileScreen from "@/screens/UserProfileScreen/UserProfileScreen";
-import ProfileScreen from "@/screens/ProfileScreen/ProfileScreen";
+import HomeScreen from "@/pages/HomeScreen";
+import EventsScreen from "@/pages/EventsScreen";
+import CommunityScreen from "@/pages/CommunityScreen";
+import ChatScreen from "@/pages/ChatScreen";
+import UserProfileScreen from "@/pages/UserProfileScreen";
+import ProfileScreen from "@/pages/ProfileScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -158,18 +158,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     width: Dimensions.get("window").width - 24,
-    height: 70,
-    borderRadius: 35,
-    paddingHorizontal: 8,
+    height: 74,
+    borderRadius: 28,
+    paddingHorizontal: 10,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.20)",
-    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(10, 15, 28, 0.45)",
   },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.18)",
+    borderTopColor: "rgba(255,255,255,0.16)",
     borderRadius: 35,
     pointerEvents: "none",
   },
@@ -182,25 +183,25 @@ const styles = StyleSheet.create({
     top: "50%",
     marginTop: -27,
     height: 54,
-    borderRadius: 27,
+    borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.28)",
-    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.18)",
+    backgroundColor: "rgba(255,255,255,0.16)",
   },
   tabItem: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-    paddingHorizontal: 10,
+    gap: 4,
+    paddingHorizontal: 8,
     height: 54,
-    borderRadius: 27,
+    borderRadius: 22,
   },
 
   label: {
     fontSize: 10,
-    fontWeight: "500",
-    color: "rgba(255,255,255,0.4)",
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.62)",
     letterSpacing: 0.2,
   },
   labelActive: {

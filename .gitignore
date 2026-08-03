@@ -38,7 +38,10 @@ yarn-error.*
 packages/backend/uploads/
 
 # typescript
+# The project is plain JS — Expo's CLI keeps regenerating a tsconfig anyway, so
+# it is ignored rather than committed.
 *.tsbuildinfo
+tsconfig.json
 
 app-example
 
