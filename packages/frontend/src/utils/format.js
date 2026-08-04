@@ -27,6 +27,64 @@ export function formatEventDate(value) {
   return `${DAYS_SHORT[date.getDay()]} ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
 }
 
+// Nights travel to the API as "YYYY-MM-DD" rather than timestamps — see the
+// Reservation model for why.
+export function toDateKey(value) {
+  const d = new Date(value);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+// A night runs past midnight, so before 06:00 the night that is *running* is
+// still the one that began yesterday evening. Mirrors currentNightKey on the
+// server; used for "what is happening right now", not for booking ahead —
+// someone booking at 02:00 means the coming evening, which is today's key.
+export function currentNightKey(now = new Date()) {
+  const d = new Date(now);
+  if (d.getHours() < 6) d.setDate(d.getDate() - 1);
+  return toDateKey(d);
+}
+
+// The next `count` nights as keys, starting with today.
+export function nextNights(count) {
+  const nights = [];
+  const d = new Date();
+
+  for (let i = 0; i < count; i += 1) {
+    nights.push(toDateKey(d));
+    d.setDate(d.getDate() + 1);
+  }
+
+  return nights;
+}
+
+// "Απόψε" / "Αύριο" / "Σαβ 16 Αυγ" for a night key.
+export function formatNightKey(key) {
+  if (!key) return "";
+
+  const date = new Date(`${key}T00:00:00`);
+  const diff = daysFromToday(date);
+
+  if (diff === 0) return "Απόψε";
+  if (diff === 1) return "Αύριο";
+
+  return `${DAYS_SHORT[date.getDay()]} ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
+}
+
+// Narrower version for a row of chips: "Απόψε" / "Αύριο" / "Σαβ 16".
+export function formatNightChip(key) {
+  if (!key) return "";
+
+  const date = new Date(`${key}T00:00:00`);
+  const diff = daysFromToday(date);
+
+  if (diff === 0) return "Απόψε";
+  if (diff === 1) return "Αύριο";
+
+  return `${DAYS_SHORT[date.getDay()]} ${date.getDate()}`;
+}
+
 export function formatFullDate(value) {
   if (!value) return "";
   const date = new Date(value);

@@ -1,14 +1,15 @@
 require("dotenv").config();
 
 const express = require("express");
-const mongoose = require("mongoose");
-const { connectDB } = require("./db");
-const { User } = require("./models");
+const http = require("http");
+const { ObjectId } = require("mongodb");
+const { connectDB, getDb, getClient } = require("./db");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const cors = require("cors");
 
 const { router: uploadsRouter, UPLOAD_ROOT } = require("./src/routes/uploads");
+const { initRealtime } = require("./src/realtime");
 
 const app = express();
 
@@ -26,9 +27,9 @@ app.use(
 const start = async () => {
   await connectDB();
 
-  // Reuse the connection mongoose already opened instead of dialing a second one.
+  // Reuse the client connectDB already opened instead of dialing a second one.
   const store = MongoStore.create({
-    client: mongoose.connection.getClient(),
+    client: getClient(),
     collectionName: "session_store",
   });
 
@@ -36,20 +37,22 @@ const start = async () => {
     console.error("Session store error", error);
   });
 
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "supersecret",
-      resave: false,
-      saveUninitialized: false,
-      store: store,
-      cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-        sameSite: "lax",
-        secure: false,
-        httpOnly: true,
-      },
-    }),
-  );
+  // Held in a variable because socket.io reuses the very same middleware to
+  // identify connections — see src/realtime.js.
+  const sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET || "supersecret",
+    resave: false,
+    saveUninitialized: false,
+    store: store,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+      sameSite: "lax",
+      secure: false,
+      httpOnly: true,
+    },
+  });
+
+  app.use(sessionMiddleware);
 
   app.get("/health", (req, res) => res.json({ ok: true }));
 
@@ -58,6 +61,7 @@ const start = async () => {
   app.use("/stores", require("./src/routes/stores"));
   app.use("/users", require("./src/routes/users"));
   app.use("/messages", require("./src/routes/messages"));
+  app.use("/reservations", require("./src/routes/reservations"));
   app.use("/uploads", uploadsRouter);
 
   // Serve what the upload route just wrote.
@@ -69,14 +73,16 @@ const start = async () => {
     }
 
     try {
-      const user = await User.findById(req.session.user.id).lean();
+      const user = await getDb()
+        .collection("users")
+        .findOne({ _id: new ObjectId(req.session.user.id) });
+
       if (!user) {
         return res.status(401).json({ message: "Not authenticated" });
       }
 
       delete user.password;
       delete user.hashedpassword;
-      delete user.__v;
       user.id = user._id.toString();
 
       return res.status(200).json({ user });
@@ -86,7 +92,12 @@ const start = async () => {
     }
   });
 
-  app.listen(3000, () => {
+  // Express no longer listens directly: socket.io needs the raw http server so
+  // it can share the port with the REST API.
+  const server = http.createServer(app);
+  initRealtime(server, sessionMiddleware);
+
+  server.listen(3000, () => {
     console.log("Server running on http://localhost:3000");
   });
 };

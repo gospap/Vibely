@@ -18,12 +18,16 @@ import {
   Clock,
   Phone,
   Star,
+  CalendarPlus,
+  Gift,
+  Radio,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import RatingStars from "@/components/RatingStars";
 import PhotoCarousel from "@/components/PhotoCarousel";
+import BookingSheet from "./BookingSheet";
 import { API_URL } from "@/constants/api";
 import {
   formatEventDate,
@@ -47,6 +51,15 @@ const CATEGORY_LABELS = {
   beach: "Beach bar",
 };
 
+// What the venue is reporting right now. Only ever set for tonight — the API
+// drops a stale one before it gets here.
+const CROWD_LABELS = {
+  quiet: "Ήσυχα",
+  filling: "Γεμίζει",
+  busy: "Γεμάτο",
+  packed: "Ουρά",
+};
+
 // Everything about one venue: photos, rating breakdown, reviews, tonight's
 // events and the button that hands the destination back to the map.
 export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate }) {
@@ -58,6 +71,11 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
   const [draftComment, setDraftComment] = useState("");
   const [savingReview, setSavingReview] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const [booking, setBooking] = useState(false);
+  const [loyalty, setLoyalty] = useState(null);
+  const [codeDraft, setCodeDraft] = useState("");
+  const [checkingIn, setCheckingIn] = useState(false);
 
   useEffect(() => {
     if (!storeId) {
@@ -78,11 +96,16 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
     Promise.all([
       load(`/stores/${storeId}`),
       load(`/stores/${storeId}/events`),
+      // Venues without a stamp card answer with enabled: false, so this is
+      // cheaper than a second round trip once the sheet is already open.
+      load(`/stores/${storeId}/loyalty`).catch(() => null),
     ])
-      .then(([detail, upcoming]) => {
+      .then(([detail, upcoming, card]) => {
         if (cancelled) return;
         setStore(detail);
         setEvents(upcoming);
+        setLoyalty(card);
+        setCodeDraft("");
         setSaved(!!detail.saved);
         setDraftRating(detail.myReview?.rating ?? 0);
         setDraftComment(detail.myReview?.comment ?? "");
@@ -146,6 +169,28 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
     }
   };
 
+  const checkIn = async () => {
+    setCheckingIn(true);
+    try {
+      const res = await fetch(`${API_URL}/stores/${storeId}/check-in`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: codeDraft.trim() }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || `Σφάλμα ${res.status}`);
+
+      setLoyalty(data);
+      setCodeDraft("");
+    } catch (err) {
+      Alert.alert("Δεν έγινε check-in", err.message);
+    } finally {
+      setCheckingIn(false);
+    }
+  };
+
   const open = store ? isOpenNow(store.openingHours) : null;
   const hours = store ? todayHours(store.openingHours) : null;
   const total = store?.ratings?.count ?? 0;
@@ -192,6 +237,16 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
               <View style={styles.body}>
                 <View style={styles.titleRow}>
                   <Text style={styles.title}>{store.name}</Text>
+
+                  {store.live?.crowd ? (
+                    <View style={styles.liveTag}>
+                      <Radio size={11} color={T.primary} strokeWidth={2.6} />
+                      <Text style={styles.liveTagText}>
+                        {CROWD_LABELS[store.live.crowd]}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {open != null ? (
                     <View
                       style={[styles.openTag, !open && styles.openTagClosed]}
@@ -252,6 +307,76 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
                   icon={Navigation2}
                   onPress={() => onNavigate(store)}
                 />
+
+                {store.bookings?.enabled ? (
+                  <Button
+                    label="Κράτηση τραπεζιού"
+                    icon={CalendarPlus}
+                    variant="secondary"
+                    onPress={() => setBooking(true)}
+                  />
+                ) : null}
+
+                {/* ---- stamp card ---- */}
+                {loyalty?.enabled ? (
+                  <View style={styles.loyalty}>
+                    <View style={styles.loyaltyHead}>
+                      <Gift size={15} color={T.accent} strokeWidth={2.2} />
+                      <Text style={styles.loyaltyTitle}>
+                        {loyalty.rewardLabel || "Κάρτα πόντων"}
+                      </Text>
+                      <Text style={styles.loyaltyCount}>
+                        {loyalty.progress}/{loyalty.stampsForReward}
+                      </Text>
+                    </View>
+
+                    <View style={styles.stamps}>
+                      {Array.from({ length: loyalty.stampsForReward }).map(
+                        (_, index) => (
+                          <View
+                            key={index}
+                            style={[
+                              styles.stamp,
+                              index < loyalty.progress && styles.stampFilled,
+                            ]}
+                          />
+                        ),
+                      )}
+                    </View>
+
+                    {loyalty.rewardsEarned > 0 ? (
+                      <Text style={styles.loyaltyEarned}>
+                        {loyalty.rewardsEarned} γεμάτες κάρτες — ζήτα το δώρο σου
+                        στο μαγαζί.
+                      </Text>
+                    ) : null}
+
+                    {loyalty.checkedInTonight ? (
+                      <Text style={styles.loyaltyDone}>
+                        Πήρες τη σφραγίδα σου απόψε.
+                      </Text>
+                    ) : (
+                      <View style={styles.codeRow}>
+                        <TextInput
+                          value={codeDraft}
+                          onChangeText={setCodeDraft}
+                          placeholder="Κωδικός βραδιάς"
+                          placeholderTextColor={T.textFaint}
+                          style={styles.codeInput}
+                          keyboardType="number-pad"
+                          maxLength={4}
+                        />
+                        <Button
+                          label="Check-in"
+                          variant="secondary"
+                          disabled={codeDraft.trim().length !== 4}
+                          loading={checkingIn}
+                          onPress={checkIn}
+                        />
+                      </View>
+                    )}
+                  </View>
+                ) : null}
 
                 {/* ---- rating summary ---- */}
                 <View style={styles.section}>
@@ -397,6 +522,12 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
           )}
         </View>
       </View>
+
+      <BookingSheet
+        storeId={booking ? storeId : null}
+        store={store}
+        onClose={() => setBooking(false)}
+      />
     </Modal>
   );
 }

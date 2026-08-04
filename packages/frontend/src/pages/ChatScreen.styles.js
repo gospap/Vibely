@@ -28,10 +28,20 @@ export default StyleSheet.create({
     gap: 10,
   },
 
+  headerText: {
+    flex: 1,
+  },
+
   headerName: {
     color: T.text,
     fontSize: 16,
     fontWeight: "700",
+  },
+
+  headerTyping: {
+    color: T.accent,
+    fontSize: 11.5,
+    fontWeight: "600",
   },
 
   listContent: {

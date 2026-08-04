@@ -32,6 +32,7 @@ export default function EventsScreen() {
 
   const [genres, setGenres] = useState([]);
   const [genre, setGenre] = useState("all");
+  const [tonight, setTonight] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -66,6 +67,9 @@ export default function EventsScreen() {
         limit: PAGE_SIZE,
         genre: genre === "all" ? undefined : genre,
         q: debouncedQuery || undefined,
+        // The server decides what "tonight" means — before 06:00 it is still
+        // last evening's night, and the client should not have to know that.
+        tonight: tonight ? 1 : undefined,
       });
 
       const res = await fetch(`${API_URL}/events${params}`, {
@@ -76,7 +80,7 @@ export default function EventsScreen() {
       const data = await res.json();
       return { data, fresh: id === requestId.current };
     },
-    [genre, debouncedQuery],
+    [genre, debouncedQuery, tonight],
   );
 
   const loadFirstPage = useCallback(async () => {
@@ -206,6 +210,11 @@ export default function EventsScreen() {
         contentContainerStyle={styles.chips}
         style={styles.chipsRow}
       >
+        <Chip
+          label="Απόψε"
+          active={tonight}
+          onPress={() => setTonight((on) => !on)}
+        />
         <Chip
           label="Όλα"
           active={genre === "all"}

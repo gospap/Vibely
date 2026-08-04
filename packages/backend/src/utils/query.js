@@ -43,10 +43,63 @@ const paginate = (query, { defaultLimit = 10, maxLimit = 50 } = {}) => {
   return { page, limit, skip: (page - 1) * limit };
 };
 
+// A night is identified by a "YYYY-MM-DD" day key rather than a timestamp —
+// see the Reservation model for why. These keep the format in one place.
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+const isDateKey = (value) =>
+  typeof value === "string" &&
+  DATE_KEY.test(value) &&
+  !Number.isNaN(Date.parse(`${value}T00:00:00`));
+
+const toDateKey = (date) => {
+  const d = new Date(date);
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
+
+const todayKey = () => toDateKey(new Date());
+
+// Whole days from key a to key b. Both are read as local midnight, so a clock
+// change between them cannot shift the answer by a day.
+const daysBetweenKeys = (a, b) =>
+  Math.round(
+    (new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000,
+  );
+
+// A night runs from the evening into the small hours, so before 06:00 "tonight"
+// is still the night that began yesterday evening. Someone browsing at 02:00
+// wants the party they are standing in, not tomorrow's.
+const NIGHT_ENDS_HOUR = 6;
+
+const currentNightKey = (now = new Date()) => {
+  const d = new Date(now);
+  if (d.getHours() < NIGHT_ENDS_HOUR) d.setDate(d.getDate() - 1);
+  return toDateKey(d);
+};
+
+// [18:00 on the night's own date, 06:00 the next morning].
+const nightWindow = (dateKey) => {
+  const from = new Date(`${dateKey}T18:00:00`);
+
+  const to = new Date(`${dateKey}T00:00:00`);
+  to.setDate(to.getDate() + 1);
+  to.setHours(NIGHT_ENDS_HOUR, 0, 0, 0);
+
+  return { from, to };
+};
+
 module.exports = {
   escapeRegex,
   normalizeText,
   parseNumber,
   haversineKm,
   paginate,
+  isDateKey,
+  toDateKey,
+  todayKey,
+  daysBetweenKeys,
+  currentNightKey,
+  nightWindow,
 };

@@ -1,13 +1,44 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { User, Event, UserPreference } = require("../../models");
+const { ObjectId } = require("mongodb");
+const { getDb } = require("../../db");
 const { requireAuth } = require("../middleware/auth");
-const { escapeRegex, normalizeText, paginate } = require("../utils/query");
+const {
+  escapeRegex,
+  normalizeText,
+  paginate,
+  currentNightKey,
+} = require("../utils/query");
 
 const router = express.Router();
 
 // Never leak the hash or the request inbox of other people.
-const PUBLIC_FIELDS = "username profileImageUrl bio gender favouriteGenres createdAt";
+const PUBLIC_FIELDS = {
+  username: 1,
+  profileImageUrl: 1,
+  bio: 1,
+  gender: 1,
+  favouriteGenres: 1,
+  createdAt: 1,
+};
+
+// Written on insert because there are no schema defaults to fall back on.
+const DEFAULT_PREFERENCES = {
+  theme: "dark",
+  language: "el",
+  // Kilometres. Used to filter the map / events feed around the user.
+  searchRadiusKm: 5,
+  notifications: {
+    push: true,
+    email: false,
+    friendRequests: true,
+    eventReminders: true,
+    messages: true,
+  },
+  privacy: {
+    showAttendance: true,
+    discoverable: true,
+  },
+};
 
 const badId = (res) => res.status(400).json({ message: "Invalid user id" });
 
@@ -21,9 +52,13 @@ router.get("/search", requireAuth, async (req, res) => {
     const { page, limit, skip } = paginate(req.query, { defaultLimit: 20 });
     const q = (req.query.q || "").trim();
 
-    const me = await User.findById(req.userId)
-      .select("friends friendRequests")
-      .lean();
+    const db = getDb();
+    const users = db.collection("users");
+
+    const me = await users.findOne(
+      { _id: req.userId },
+      { projection: { friends: 1, friendRequests: 1 } },
+    );
 
     const filter = { _id: { $ne: req.userId } };
 
@@ -32,14 +67,15 @@ router.get("/search", requireAuth, async (req, res) => {
       filter.usernameLower = new RegExp(escapeRegex(normalizeText(q)));
     }
 
-    const [users, total] = await Promise.all([
-      User.find(filter)
-        .select(PUBLIC_FIELDS)
+    const [found, total] = await Promise.all([
+      users
+        .find(filter)
+        .project(PUBLIC_FIELDS)
         .sort({ usernameLower: 1 })
         .skip(skip)
         .limit(limit)
-        .lean(),
-      User.countDocuments(filter),
+        .toArray(),
+      users.countDocuments(filter),
     ]);
 
     // One pass over my own doc instead of a query per result row.
@@ -50,15 +86,16 @@ router.get("/search", requireAuth, async (req, res) => {
         .map((r) => String(r.from)),
     );
 
-    const sentTo = await User.find({
-      _id: { $in: users.map((u) => u._id) },
-      friendRequests: { $elemMatch: { from: req.userId, status: "pending" } },
-    })
-      .select("_id")
-      .lean();
+    const sentTo = await users
+      .find({
+        _id: { $in: found.map((u) => u._id) },
+        friendRequests: { $elemMatch: { from: req.userId, status: "pending" } },
+      })
+      .project({ _id: 1 })
+      .toArray();
     const sentIds = new Set(sentTo.map((u) => String(u._id)));
 
-    const items = users.map((u) => ({
+    const items = found.map((u) => ({
       ...u,
       relation: friendIds.has(String(u._id))
         ? "friends"
@@ -81,11 +118,21 @@ router.get("/search", requireAuth, async (req, res) => {
 ========================= */
 router.get("/me/friends", requireAuth, async (req, res) => {
   try {
-    const me = await User.findById(req.userId)
-      .populate("friends", PUBLIC_FIELDS)
-      .lean();
+    const users = getDb().collection("users");
 
-    res.json(me?.friends ?? []);
+    const me = await users.findOne(
+      { _id: req.userId },
+      { projection: { friends: 1 } },
+    );
+
+    if (!me?.friends?.length) return res.json([]);
+
+    const friends = await users
+      .find({ _id: { $in: me.friends } })
+      .project(PUBLIC_FIELDS)
+      .toArray();
+
+    res.json(friends);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -98,16 +145,34 @@ router.get("/me/friends", requireAuth, async (req, res) => {
 ========================= */
 router.get("/me/requests", requireAuth, async (req, res) => {
   try {
-    const me = await User.findById(req.userId)
-      .populate("friendRequests.from", PUBLIC_FIELDS)
-      .lean();
+    const users = getDb().collection("users");
+
+    const me = await users.findOne(
+      { _id: req.userId },
+      { projection: { friendRequests: 1 } },
+    );
 
     const pending = (me?.friendRequests || [])
       .filter((r) => r.status === "pending" && r.from)
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-      .map((r) => ({ user: r.from, createdAt: r.createdAt }));
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-    res.json(pending);
+    if (!pending.length) return res.json([]);
+
+    const senders = await users
+      .find({ _id: { $in: pending.map((r) => r.from) } })
+      .project(PUBLIC_FIELDS)
+      .toArray();
+
+    const byId = new Map(senders.map((u) => [u._id.toString(), u]));
+
+    res.json(
+      pending
+        .map((r) => ({
+          user: byId.get(r.from.toString()),
+          createdAt: r.createdAt,
+        }))
+        .filter((r) => r.user),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -120,30 +185,118 @@ router.get("/me/requests", requireAuth, async (req, res) => {
 ========================= */
 router.get("/me/events", requireAuth, async (req, res) => {
   try {
-    const events = await Event.find({
-      attendants: req.userId,
-      $or: [
-        { endDate: { $gte: new Date() } },
-        { endDate: null, startDate: { $gte: new Date() } },
-      ],
-    })
+    const db = getDb();
+    const now = new Date();
+
+    const events = await db
+      .collection("events")
+      .find({
+        attendants: req.userId,
+        $or: [
+          { endDate: { $gte: now } },
+          { endDate: null, startDate: { $gte: now } },
+        ],
+      })
       .sort({ startDate: 1 })
-      .populate("hostedBy", "name images area")
-      .lean();
+      .toArray();
+
+    if (!events.length) return res.json([]);
+
+    // Stands in for populate: one extra query, then stitched in JS. The shape
+    // the profile card wants is flatter than the raw host document anyway.
+    const hostIds = [...new Set(events.map((e) => e.hostedBy).filter(Boolean))];
+    const hosts = await db
+      .collection("stores")
+      .find({ _id: { $in: hostIds } })
+      .project({ name: 1, images: 1, area: 1 })
+      .toArray();
+
+    const byId = new Map(hosts.map((s) => [s._id.toString(), s]));
 
     res.json(
-      events.map((e) => ({
-        ...e,
-        store: e.hostedBy
-          ? {
-              _id: e.hostedBy._id,
-              name: e.hostedBy.name,
-              image: e.hostedBy.images?.[0],
-              area: e.hostedBy.area,
-            }
-          : null,
-      })),
+      events.map((e) => {
+        const host = e.hostedBy ? byId.get(e.hostedBy.toString()) : null;
+
+        return {
+          ...e,
+          store: host
+            ? {
+                _id: host._id,
+                name: host.name,
+                image: host.images?.[0],
+                area: host.area,
+              }
+            : null,
+        };
+      }),
     );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   GET /users/me/loyalty
+   Every stamp card I have going, for the wallet on the profile screen.
+========================= */
+router.get("/me/loyalty", requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+
+    const rows = await db
+      .collection("checkins")
+      .aggregate([
+        { $match: { user: req.userId } },
+        {
+          $group: {
+            _id: "$store",
+            stamps: { $sum: 1 },
+            lastVisit: { $max: "$dateKey" },
+          },
+        },
+        { $sort: { lastVisit: -1 } },
+      ])
+      .toArray();
+
+    if (!rows.length) return res.json([]);
+
+    const stores = await db
+      .collection("stores")
+      .find({ _id: { $in: rows.map((r) => r._id) } })
+      .project({ name: 1, images: 1, area: 1, category: 1, loyalty: 1 })
+      .toArray();
+
+    const byId = new Map(stores.map((s) => [s._id.toString(), s]));
+    const tonight = currentNightKey();
+
+    const cards = rows
+      .map((row) => {
+        const store = byId.get(row._id.toString());
+        if (!store?.loyalty?.enabled) return null;
+
+        const target = store.loyalty.stampsForReward ?? 6;
+
+        return {
+          store: {
+            _id: store._id,
+            name: store.name,
+            image: store.images?.[0],
+            area: store.area,
+            category: store.category,
+          },
+          stamps: row.stamps,
+          stampsForReward: target,
+          rewardLabel: store.loyalty.rewardLabel || null,
+          progress: target > 0 ? row.stamps % target : 0,
+          rewardsEarned: target > 0 ? Math.floor(row.stamps / target) : 0,
+          lastVisit: row.lastVisit,
+          checkedInTonight: row.lastVisit === tonight,
+        };
+      })
+      .filter(Boolean);
+
+    res.json(cards);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -175,6 +328,7 @@ router.patch("/me", requireAuth, async (req, res) => {
       if (!update.username) {
         return res.status(400).json({ message: "Username cannot be empty" });
       }
+      // Keep the search mirror in step with the name on every write path.
       update.usernameLower = normalizeText(update.username);
     }
 
@@ -184,16 +338,20 @@ router.patch("/me", requireAuth, async (req, res) => {
       return res.status(400).json({ message: "Invalid gender" });
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.userId,
-      { $set: update },
-      { new: true, runValidators: true },
-    ).lean();
+    update.updatedAt = new Date();
+
+    const user = await getDb()
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: req.userId },
+        { $set: update },
+        { returnDocument: "after" },
+      );
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
     delete user.password;
-    delete user.__v;
+    delete user.hashedpassword;
     user.id = user._id.toString();
 
     // Keep the session copy in step so /auth/me does not serve a stale name.
@@ -217,14 +375,16 @@ router.patch("/me", requireAuth, async (req, res) => {
 ========================= */
 router.get("/me/preferences", requireAuth, async (req, res) => {
   try {
-    // Created on first read so the client always gets a full object.
-    const prefs = await UserPreference.findOneAndUpdate(
-      { user: req.userId },
-      { $setOnInsert: { user: req.userId } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    ).lean();
+    const preferences = getDb().collection("userpreferences");
 
-    res.json(prefs);
+    // Created on first read so the client always gets a full object.
+    await preferences.updateOne(
+      { user: req.userId },
+      { $setOnInsert: { user: req.userId, ...DEFAULT_PREFERENCES } },
+      { upsert: true },
+    );
+
+    res.json(await preferences.findOne({ user: req.userId }));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -250,11 +410,22 @@ router.put("/me/preferences", requireAuth, async (req, res) => {
       if (typeof value === "boolean") update[`privacy.${key}`] = value;
     }
 
-    const prefs = await UserPreference.findOneAndUpdate(
+    const preferences = getDb().collection("userpreferences");
+
+    // Two steps rather than one upsert: mongo refuses an update that touches
+    // both `notifications` (via $setOnInsert) and `notifications.push` (via
+    // $set), so the defaults are settled first and the toggles applied after.
+    await preferences.updateOne(
       { user: req.userId },
-      { $set: update, $setOnInsert: { user: req.userId } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    ).lean();
+      { $setOnInsert: { user: req.userId, ...DEFAULT_PREFERENCES } },
+      { upsert: true },
+    );
+
+    const prefs = await preferences.findOneAndUpdate(
+      { user: req.userId },
+      { $set: { ...update, updatedAt: new Date() } },
+      { returnDocument: "after" },
+    );
 
     res.json(prefs);
   } catch (err) {
@@ -269,15 +440,26 @@ router.put("/me/preferences", requireAuth, async (req, res) => {
 router.get("/:id", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const users = getDb().collection("users");
+    const targetId = new ObjectId(id);
 
     const [user, me, theyGotMyRequest] = await Promise.all([
-      User.findById(id).select(PUBLIC_FIELDS).lean(),
-      User.findById(req.userId).select("friends friendRequests").lean(),
-      User.exists({
-        _id: id,
-        friendRequests: { $elemMatch: { from: req.userId, status: "pending" } },
-      }),
+      users.findOne({ _id: targetId }, { projection: PUBLIC_FIELDS }),
+      users.findOne(
+        { _id: req.userId },
+        { projection: { friends: 1, friendRequests: 1 } },
+      ),
+      users.countDocuments(
+        {
+          _id: targetId,
+          friendRequests: {
+            $elemMatch: { from: req.userId, status: "pending" },
+          },
+        },
+        { limit: 1 },
+      ),
     ]);
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -312,37 +494,54 @@ router.get("/:id", requireAuth, async (req, res) => {
 router.post("/:id/friend-request", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
     if (id === req.userId.toString()) {
       return res.status(400).json({ message: "Cannot friend yourself" });
     }
 
-    const target = await User.findById(id).select("friendRequests friends");
+    const users = getDb().collection("users");
+    const targetId = new ObjectId(id);
+
+    const target = await users.findOne(
+      { _id: targetId },
+      { projection: { friendRequests: 1, friends: 1 } },
+    );
     if (!target) return res.status(404).json({ message: "User not found" });
 
-    if (target.friends.some((f) => f.toString() === req.userId.toString())) {
+    if ((target.friends || []).some((f) => f.toString() === req.userId.toString())) {
       return res.status(409).json({ message: "Already friends" });
     }
 
-    const existing = target.friendRequests.find(
+    const existing = (target.friendRequests || []).find(
       (r) => String(r.from) === req.userId.toString() && r.status === "pending",
     );
     if (existing) return res.json({ relation: "requested" });
 
     // They already asked me — treat a request back as an accept.
-    const mine = await User.findById(req.userId).select("friendRequests");
-    const incoming = mine.friendRequests.find(
+    const mine = await users.findOne(
+      { _id: req.userId },
+      { projection: { friendRequests: 1 } },
+    );
+    const incoming = (mine?.friendRequests || []).find(
       (r) => String(r.from) === id && r.status === "pending",
     );
     if (incoming) {
-      await linkFriends(req.userId, id);
+      await linkFriends(req.userId, targetId);
       return res.json({ relation: "friends" });
     }
 
-    await User.updateOne(
-      { _id: id },
-      { $push: { friendRequests: { from: req.userId, status: "pending" } } },
+    await users.updateOne(
+      { _id: targetId },
+      {
+        $push: {
+          friendRequests: {
+            from: req.userId,
+            status: "pending",
+            createdAt: new Date(),
+          },
+        },
+      },
     );
 
     res.status(201).json({ relation: "requested" });
@@ -355,12 +554,14 @@ router.post("/:id/friend-request", requireAuth, async (req, res) => {
 router.delete("/:id/friend-request", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
-    await User.updateOne(
-      { _id: id },
-      { $pull: { friendRequests: { from: req.userId } } },
-    );
+    await getDb()
+      .collection("users")
+      .updateOne(
+        { _id: new ObjectId(id) },
+        { $pull: { friendRequests: { from: req.userId } } },
+      );
 
     res.json({ relation: "none" });
   } catch (err) {
@@ -378,16 +579,19 @@ router.delete("/:id/friend-request", requireAuth, async (req, res) => {
 router.post("/:id/friend-request/accept", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
-    const me = await User.findById(req.userId).select("friendRequests");
-    const pending = me?.friendRequests.some(
+    const me = await getDb()
+      .collection("users")
+      .findOne({ _id: req.userId }, { projection: { friendRequests: 1 } });
+
+    const pending = (me?.friendRequests || []).some(
       (r) => String(r.from) === id && r.status === "pending",
     );
 
     if (!pending) return res.status(404).json({ message: "No pending request" });
 
-    await linkFriends(req.userId, id);
+    await linkFriends(req.userId, new ObjectId(id));
 
     res.json({ relation: "friends" });
   } catch (err) {
@@ -399,12 +603,14 @@ router.post("/:id/friend-request/accept", requireAuth, async (req, res) => {
 router.post("/:id/friend-request/reject", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
-    await User.updateOne(
-      { _id: req.userId },
-      { $pull: { friendRequests: { from: new mongoose.Types.ObjectId(id) } } },
-    );
+    await getDb()
+      .collection("users")
+      .updateOne(
+        { _id: req.userId },
+        { $pull: { friendRequests: { from: new ObjectId(id) } } },
+      );
 
     res.json({ relation: "none" });
   } catch (err) {
@@ -419,11 +625,14 @@ router.post("/:id/friend-request/reject", requireAuth, async (req, res) => {
 router.delete("/:id/friend", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const users = getDb().collection("users");
+    const otherId = new ObjectId(id);
 
     await Promise.all([
-      User.updateOne({ _id: req.userId }, { $pull: { friends: id } }),
-      User.updateOne({ _id: id }, { $pull: { friends: req.userId } }),
+      users.updateOne({ _id: req.userId }, { $pull: { friends: otherId } }),
+      users.updateOne({ _id: otherId }, { $pull: { friends: req.userId } }),
     ]);
 
     res.json({ relation: "none" });
@@ -435,16 +644,15 @@ router.delete("/:id/friend", requireAuth, async (req, res) => {
 
 // Friendship is symmetric, so write both sides and clear any leftover request
 // entries in either inbox.
-async function linkFriends(a, b) {
-  const aId = new mongoose.Types.ObjectId(a);
-  const bId = new mongoose.Types.ObjectId(b);
+async function linkFriends(aId, bId) {
+  const users = getDb().collection("users");
 
   await Promise.all([
-    User.updateOne(
+    users.updateOne(
       { _id: aId },
       { $addToSet: { friends: bId }, $pull: { friendRequests: { from: bId } } },
     ),
-    User.updateOne(
+    users.updateOne(
       { _id: bId },
       { $addToSet: { friends: aId }, $pull: { friendRequests: { from: aId } } },
     ),

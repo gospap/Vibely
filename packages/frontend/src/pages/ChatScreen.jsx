@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { ChevronLeft, ImagePlus, Send } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
+import { SocketContext } from "@/context/SocketContext";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
 import { pickAndUpload } from "@/utils/upload";
@@ -24,8 +25,12 @@ import { T } from "@/styles/theme";
 import styles from "./ChatScreen.styles";
 
 const PAGE_SIZE = 30;
-// No websockets here, so the thread polls while it is on screen.
+// Fallback only: the socket delivers messages the moment they are written, and
+// this poll runs solely while that connection is down.
 const POLL_MS = 5000;
+// A typing bubble that never clears is worse than none, so it expires on a
+// timer as well as on the "stopped" event.
+const TYPING_TIMEOUT_MS = 4000;
 
 // Session cookie or the API treats every call as a stranger.
 const call = async (path, { method = "GET", body } = {}) => {
@@ -53,7 +58,13 @@ export default function ChatScreen() {
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const socket = useContext(SocketContext);
+  const [connected, setConnected] = useState(false);
+  const [theyAreTyping, setTheyAreTyping] = useState(false);
+
   const listRef = useRef(null);
+  const typingTimer = useRef(null);
+  const lastTypingSent = useRef(0);
 
   const fetchPage = useCallback(
     async (pageNumber) =>
@@ -89,8 +100,71 @@ export default function ChatScreen() {
     };
   }, [fetchPage, userId]);
 
-  /* --- poll the newest page for incoming messages --- */
+  /* --- live delivery over the socket --- */
   useEffect(() => {
+    if (!socket) {
+      setConnected(false);
+      return;
+    }
+
+    setConnected(socket.connected);
+
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+
+    const onNew = (message) => {
+      // Messages from other threads belong to the conversation list, not here.
+      if (String(message.sender) !== String(userId)) return;
+
+      setMessages((prev) =>
+        prev.some((m) => m._id === message._id) ? prev : [message, ...prev],
+      );
+
+      // It arrived while the thread was open, so it has been seen.
+      call(`/messages/${userId}/read`, { method: "POST" }).catch(() => {});
+    };
+
+    const onRead = ({ by }) => {
+      if (String(by) !== String(userId)) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.mine && !m.read ? { ...m, read: true } : m)),
+      );
+    };
+
+    const onTyping = ({ from, typing }) => {
+      if (String(from) !== String(userId)) return;
+
+      setTheyAreTyping(typing);
+      clearTimeout(typingTimer.current);
+
+      if (typing) {
+        typingTimer.current = setTimeout(
+          () => setTheyAreTyping(false),
+          TYPING_TIMEOUT_MS,
+        );
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("message:new", onNew);
+    socket.on("message:read", onRead);
+    socket.on("typing", onTyping);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("message:new", onNew);
+      socket.off("message:read", onRead);
+      socket.off("typing", onTyping);
+      clearTimeout(typingTimer.current);
+    };
+  }, [socket, userId]);
+
+  /* --- fallback poll, only while the socket is down --- */
+  useEffect(() => {
+    if (connected) return undefined;
+
     const timer = setInterval(async () => {
       try {
         const data = await fetchPage(1);
@@ -113,7 +187,7 @@ export default function ChatScreen() {
     }, POLL_MS);
 
     return () => clearInterval(timer);
-  }, [fetchPage, userId]);
+  }, [connected, fetchPage, userId]);
 
   const loadOlder = async () => {
     if (!hasMore || loadingMore) return;
@@ -145,6 +219,8 @@ export default function ChatScreen() {
       });
       setMessages((prev) => [sent, ...prev]);
       setDraft("");
+      socket?.emit("typing", { to: userId, typing: false });
+      lastTypingSent.current = 0;
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
     } catch (err) {
       Alert.alert("Δεν στάλθηκε", err.message);
@@ -157,6 +233,18 @@ export default function ChatScreen() {
     const text = draft.trim();
     if (!text || sending) return;
     send({ text });
+  };
+
+  // Fires on every keystroke, so it is throttled to one ping every couple of
+  // seconds; the other side's bubble expires on its own timer anyway.
+  const onDraftChange = (value) => {
+    setDraft(value);
+
+    const now = Date.now();
+    if (socket && value && now - lastTypingSent.current > 2000) {
+      lastTypingSent.current = now;
+      socket.emit("typing", { to: userId, typing: true });
+    }
   };
 
   const onPickPhoto = async () => {
@@ -230,9 +318,15 @@ export default function ChatScreen() {
           onPress={() => navigation.navigate("UserProfile", { userId })}
         >
           <Avatar uri={profileImageUrl} name={username} size={36} />
-          <Text style={styles.headerName} numberOfLines={1}>
-            {username}
-          </Text>
+
+          <View style={styles.headerText}>
+            <Text style={styles.headerName} numberOfLines={1}>
+              {username}
+            </Text>
+            {theyAreTyping ? (
+              <Text style={styles.headerTyping}>γράφει…</Text>
+            ) : null}
+          </View>
         </Pressable>
       </View>
 
@@ -283,7 +377,7 @@ export default function ChatScreen() {
 
           <TextInput
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={onDraftChange}
             placeholder="Μήνυμα..."
             placeholderTextColor={T.textFaint}
             style={styles.input}

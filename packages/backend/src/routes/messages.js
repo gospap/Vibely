@@ -1,12 +1,18 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { Message, User, conversationKey } = require("../../models");
+const { ObjectId } = require("mongodb");
+const { getDb } = require("../../db");
 const { requireAuth } = require("../middleware/auth");
 const { paginate } = require("../utils/query");
+const { emitToUser } = require("../realtime");
 
 const router = express.Router();
 
 const badId = (res) => res.status(400).json({ message: "Invalid user id" });
+
+// Stable key for a pair of users, whichever way round they are passed. Lets a
+// thread be fetched with one indexed equality match instead of an $or over both
+// directions.
+const conversationKey = (a, b) => [a.toString(), b.toString()].sort().join(":");
 
 /* =========================
    GET /messages/conversations
@@ -15,40 +21,51 @@ const badId = (res) => res.status(400).json({ message: "Invalid user id" });
 ========================= */
 router.get("/conversations", requireAuth, async (req, res) => {
   try {
-    const me = await User.findById(req.userId)
-      .populate("friends", "username profileImageUrl")
-      .lean();
+    const db = getDb();
 
-    const friends = me?.friends ?? [];
-    if (!friends.length) return res.json([]);
+    const me = await db
+      .collection("users")
+      .findOne({ _id: req.userId }, { projection: { friends: 1 } });
+
+    const friendIds = me?.friends ?? [];
+    if (!friendIds.length) return res.json([]);
+
+    const friends = await db
+      .collection("users")
+      .find({ _id: { $in: friendIds } })
+      .project({ username: 1, profileImageUrl: 1 })
+      .toArray();
 
     const keys = friends.map((f) => conversationKey(req.userId, f._id));
 
     // Latest message per thread + how many of them I have not opened.
-    const rows = await Message.aggregate([
-      { $match: { conversationId: { $in: keys } } },
-      { $sort: { createdAt: -1 } },
-      {
-        $group: {
-          _id: "$conversationId",
-          last: { $first: "$$ROOT" },
-          unread: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ["$receiver", req.userId] },
-                    { $eq: ["$read", false] },
-                  ],
-                },
-                1,
-                0,
-              ],
+    const rows = await db
+      .collection("messages")
+      .aggregate([
+        { $match: { conversationId: { $in: keys } } },
+        { $sort: { createdAt: -1 } },
+        {
+          $group: {
+            _id: "$conversationId",
+            last: { $first: "$$ROOT" },
+            unread: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $eq: ["$receiver", req.userId] },
+                      { $eq: ["$read", false] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
             },
           },
         },
-      },
-    ]);
+      ])
+      .toArray();
 
     const byKey = new Map(rows.map((r) => [r._id, r]));
 
@@ -90,10 +107,10 @@ router.get("/conversations", requireAuth, async (req, res) => {
 ========================= */
 router.get("/unread-count", requireAuth, async (req, res) => {
   try {
-    const count = await Message.countDocuments({
-      receiver: req.userId,
-      read: false,
-    });
+    const count = await getDb()
+      .collection("messages")
+      .countDocuments({ receiver: req.userId, read: false });
+
     res.json({ count });
   } catch (err) {
     console.error(err);
@@ -108,23 +125,31 @@ router.get("/unread-count", requireAuth, async (req, res) => {
 router.get("/:userId", requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!mongoose.isValidObjectId(userId)) return badId(res);
+    if (!ObjectId.isValid(userId)) return badId(res);
 
     const { page, limit, skip } = paginate(req.query, {
       defaultLimit: 30,
       maxLimit: 100,
     });
 
+    const db = getDb();
     const conversationId = conversationKey(req.userId, userId);
 
     const [items, total, other] = await Promise.all([
-      Message.find({ conversationId })
+      db
+        .collection("messages")
+        .find({ conversationId })
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .lean(),
-      Message.countDocuments({ conversationId }),
-      User.findById(userId).select("username profileImageUrl").lean(),
+        .toArray(),
+      db.collection("messages").countDocuments({ conversationId }),
+      db
+        .collection("users")
+        .findOne(
+          { _id: new ObjectId(userId) },
+          { projection: { username: 1, profileImageUrl: 1 } },
+        ),
     ]);
 
     if (!other) return res.status(404).json({ message: "User not found" });
@@ -154,7 +179,7 @@ router.get("/:userId", requireAuth, async (req, res) => {
 router.post("/:userId", requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!mongoose.isValidObjectId(userId)) return badId(res);
+    if (!ObjectId.isValid(userId)) return badId(res);
 
     if (userId === req.userId.toString()) {
       return res.status(400).json({ message: "Cannot message yourself" });
@@ -167,23 +192,38 @@ router.post("/:userId", requireAuth, async (req, res) => {
       return res.status(400).json({ message: "Message cannot be empty" });
     }
 
-    const areFriends = await User.exists({
-      _id: req.userId,
-      friends: userId,
-    });
+    const db = getDb();
+    const receiver = new ObjectId(userId);
+
+    const areFriends = await db
+      .collection("users")
+      .countDocuments({ _id: req.userId, friends: receiver }, { limit: 1 });
+
     if (!areFriends) {
       return res.status(403).json({ message: "You can only message friends" });
     }
 
-    const message = await Message.create({
+    const now = new Date();
+    const doc = {
       sender: req.userId,
-      receiver: userId,
-      conversationId: conversationKey(req.userId, userId),
+      receiver,
+      conversationId: conversationKey(req.userId, receiver),
       text: text || undefined,
       imageUrl,
-    });
+      read: false,
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    res.status(201).json({ ...message.toObject(), mine: true });
+    const { insertedId } = await db.collection("messages").insertOne(doc);
+    const message = { ...doc, _id: insertedId };
+
+    // The socket only ever pushes what this route already saved, so there is
+    // one write path and a dropped connection costs a notification, not a
+    // message.
+    emitToUser(userId, "message:new", { ...message, mine: false });
+
+    res.status(201).json({ ...message, mine: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -196,16 +236,23 @@ router.post("/:userId", requireAuth, async (req, res) => {
 router.post("/:userId/read", requireAuth, async (req, res) => {
   try {
     const { userId } = req.params;
-    if (!mongoose.isValidObjectId(userId)) return badId(res);
+    if (!ObjectId.isValid(userId)) return badId(res);
 
-    const result = await Message.updateMany(
-      {
-        conversationId: conversationKey(req.userId, userId),
-        receiver: req.userId,
-        read: false,
-      },
-      { $set: { read: true } },
-    );
+    const result = await getDb()
+      .collection("messages")
+      .updateMany(
+        {
+          conversationId: conversationKey(req.userId, userId),
+          receiver: req.userId,
+          read: false,
+        },
+        { $set: { read: true, updatedAt: new Date() } },
+      );
+
+    // Let the other side turn their ticks blue without polling for it.
+    if (result.modifiedCount) {
+      emitToUser(userId, "message:read", { by: req.userId.toString() });
+    }
 
     res.json({ updated: result.modifiedCount });
   } catch (err) {

@@ -129,6 +129,80 @@ export default StyleSheet.create({
     fontWeight: "700",
   },
 
+  /* ---- bookings link ---- */
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: T.radius.md,
+    backgroundColor: T.surface,
+  },
+
+  linkLabel: {
+    flex: 1,
+    color: T.text,
+    fontSize: 14.5,
+    fontWeight: "700",
+  },
+
+  /* ---- stamp cards ---- */
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: T.radius.md,
+    backgroundColor: T.surface,
+  },
+
+  cardImage: {
+    width: 46,
+    height: 46,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.elevated,
+  },
+
+  cardText: {
+    flex: 1,
+    gap: 4,
+  },
+
+  cardName: {
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  cardReward: {
+    color: T.textFaint,
+    fontSize: 12,
+  },
+
+  cardTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: T.elevated,
+    overflow: "hidden",
+    marginTop: 2,
+  },
+
+  cardFill: {
+    height: "100%",
+    backgroundColor: T.accent,
+  },
+
+  cardCount: {
+    alignItems: "center",
+    gap: 3,
+  },
+
+  cardCountText: {
+    color: T.accent,
+    fontSize: 12.5,
+    fontWeight: "800",
+  },
+
   /* ---- events ---- */
   eventRow: {
     flexDirection: "row",

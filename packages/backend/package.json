@@ -5,7 +5,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon index.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "demo:tonight": "node scripts/tonight.js",
+    "demo:bookings": "node scripts/demo-bookings.js",
+    "demo:salt": "node scripts/demo-salt.js"
   },
   "keywords": [],
   "author": "",
@@ -20,10 +23,11 @@
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "express-validator": "^7.3.2",
-    "mongoose": "^9.6.2"
+    "mongodb": "^6.21.0",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14",
-    "@types/node": "^20.14.2"
+    "@types/node": "^20.14.2",
+    "nodemon": "^3.1.14"
   }
 }
