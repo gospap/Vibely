@@ -12,7 +12,15 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { Pencil, LogOut, CalendarDays, Users } from "lucide-react-native";
+import {
+  Pencil,
+  LogOut,
+  CalendarDays,
+  Users,
+  CalendarCheck,
+  Gift,
+  ChevronRight,
+} from "lucide-react-native";
 
 import { AuthContext } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
@@ -56,20 +64,23 @@ export default function ProfileScreen() {
   const [prefs, setPrefs] = useState(null);
   const [myEvents, setMyEvents] = useState([]);
   const [friends, setFriends] = useState([]);
+  const [loyalty, setLoyalty] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [preferences, events, mates] = await Promise.all([
+      const [preferences, events, mates, cards] = await Promise.all([
         call("/users/me/preferences"),
         call("/users/me/events"),
         call("/users/me/friends"),
+        call("/users/me/loyalty"),
       ]);
       setPrefs(preferences);
       setMyEvents(events);
       setFriends(mates);
+      setLoyalty(cards);
     } catch (err) {
       console.log(err.message);
     } finally {
@@ -188,6 +199,56 @@ export default function ProfileScreen() {
             <Text style={styles.cardLabel}>Αποθηκευμένα</Text>
           </View>
         </View>
+
+        {/* ---- bookings ---- */}
+        <Pressable
+          style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
+          onPress={() => navigation.navigate("MyBookings")}
+        >
+          <CalendarCheck size={17} color={T.primary} strokeWidth={2.2} />
+          <Text style={styles.linkLabel}>Οι κρατήσεις μου</Text>
+          <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
+        </Pressable>
+
+        {/* ---- stamp cards ---- */}
+        {loyalty.length ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Κάρτες πόντων</Text>
+
+            {loyalty.map((card) => (
+              <View key={card.store._id} style={styles.cardRow}>
+                <Image source={{ uri: card.store.image }} style={styles.cardImage} />
+
+                <View style={styles.cardText}>
+                  <Text style={styles.cardName} numberOfLines={1}>
+                    {card.store.name}
+                  </Text>
+                  <Text style={styles.cardReward} numberOfLines={1}>
+                    {card.rewardLabel || "Κάρτα πόντων"}
+                  </Text>
+
+                  <View style={styles.cardTrack}>
+                    <View
+                      style={[
+                        styles.cardFill,
+                        {
+                          width: `${(card.progress / card.stampsForReward) * 100}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.cardCount}>
+                  <Gift size={13} color={T.accent} strokeWidth={2.2} />
+                  <Text style={styles.cardCountText}>
+                    {card.progress}/{card.stampsForReward}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
 
         {/* ---- upcoming events ---- */}
         <View style={styles.section}>

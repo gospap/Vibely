@@ -1,7 +1,9 @@
 const express = require("express");
-const { User } = require("../../models");
-const router = express.Router();
 const bcrypt = require("bcrypt");
+const { getDb } = require("../../db");
+const { normalizeText } = require("../utils/text");
+
+const router = express.Router();
 
 function buildUserPayload(user) {
   return {
@@ -17,10 +19,9 @@ function buildUserPayload(user) {
 }
 
 function getSafeUser(user) {
-  const safe = user.toObject ? user.toObject() : { ...user };
+  const safe = { ...user };
   delete safe.password;
   delete safe.hashedpassword;
-  delete safe.__v;
   safe.id = user._id.toString();
   return safe;
 }
@@ -36,19 +37,41 @@ router.post("/register", async (req, res) => {
         .json({ message: "Name, email and password are required" });
     }
 
-    const existingUser = await User.findOne({ email });
+    const users = getDb().collection("users");
+
+    const existingUser = await users.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({
+    const now = new Date();
+
+    const doc = {
       username: name,
+      // Lowercased, accent-stripped mirror of the username, written on every
+      // path that sets a username. Search matches on this so both "NIKOS" and
+      // "Ελενη" find their owners off an index, rather than needing a
+      // case-insensitive regex scan over the whole collection.
+      usernameLower: normalizeText(name),
       email,
       password: hashedPassword,
-    });
+      type: "user",
+      bio: null,
+      dateOfBirth: null,
+      gender: null,
+      profileImageUrl: null,
+      favouriteGenres: [],
+      friends: [],
+      friendRequests: [],
+      onGoingEvents: [],
+      savedStores: [],
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    await user.save();
+    const { insertedId } = await users.insertOne(doc);
+    const user = { ...doc, _id: insertedId };
 
     req.session.user = buildUserPayload(user);
     res.status(201).json({ user: getSafeUser(user) });
@@ -68,7 +91,7 @@ router.post("/login", async (req, res) => {
         .json({ message: "Email and password are required" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await getDb().collection("users").findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }

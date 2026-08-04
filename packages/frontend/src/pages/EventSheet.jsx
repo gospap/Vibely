@@ -18,13 +18,15 @@ import {
   Ticket,
   Users,
   Check,
+  CalendarPlus,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import RatingStars from "@/components/RatingStars";
+import BookingSheet from "./BookingSheet";
 import { API_URL } from "@/constants/api";
-import { formatFullDate, formatPrice } from "@/utils/format";
+import { formatFullDate, formatPrice, toDateKey } from "@/utils/format";
 import { T } from "@/styles/theme";
 import styles from "./EventSheet.styles";
 
@@ -36,6 +38,7 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   useEffect(() => {
     if (!eventId) {
@@ -230,11 +233,29 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
                   loading={busy}
                   onPress={toggleAttend}
                 />
+
+                {event.store?.bookings?.enabled ? (
+                  <Button
+                    label="Κράτηση τραπεζιού"
+                    icon={CalendarPlus}
+                    variant="secondary"
+                    onPress={() => setBooking(true)}
+                  />
+                ) : null}
               </View>
             </ScrollView>
           )}
         </View>
       </View>
+
+      {/* Prefilled with this event's night, since that is the one being booked. */}
+      <BookingSheet
+        storeId={booking ? event?.store?._id : null}
+        store={event?.store}
+        eventId={event?._id}
+        defaultDateKey={event ? toDateKey(event.startDate) : undefined}
+        onClose={() => setBooking(false)}
+      />
     </Modal>
   );
 }

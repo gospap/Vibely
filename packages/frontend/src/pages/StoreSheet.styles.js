@@ -88,6 +88,98 @@ export default StyleSheet.create({
     color: T.danger,
   },
 
+  /* ---- live tonight ---- */
+  liveTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: T.radius.pill,
+    backgroundColor: T.primarySoft,
+  },
+
+  liveTagText: {
+    color: T.primary,
+    fontSize: 11.5,
+    fontWeight: "800",
+  },
+
+  /* ---- stamp card ---- */
+  loyalty: {
+    gap: 10,
+    padding: 14,
+    borderRadius: T.radius.md,
+    backgroundColor: T.surfaceAlt,
+  },
+
+  loyaltyHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  loyaltyTitle: {
+    flex: 1,
+    color: T.text,
+    fontSize: 13.5,
+    fontWeight: "800",
+  },
+
+  loyaltyCount: {
+    color: T.accent,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  stamps: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+
+  stamp: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: T.borderStrong,
+  },
+
+  stampFilled: {
+    backgroundColor: T.accent,
+    borderColor: T.accent,
+  },
+
+  loyaltyEarned: {
+    color: T.accent,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  loyaltyDone: {
+    color: T.textFaint,
+    fontSize: 12.5,
+  },
+
+  codeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  codeInput: {
+    flex: 1,
+    color: T.text,
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 3,
+    backgroundColor: T.elevated,
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+
   meta: {
     color: T.textMuted,
     fontSize: 13,

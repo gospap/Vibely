@@ -1,8 +1,15 @@
 const express = require("express");
-const mongoose = require("mongoose");
-const { Event, Store, User } = require("../../models");
+const { ObjectId } = require("mongodb");
+const { getDb } = require("../../db");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
-const { escapeRegex, normalizeText, paginate, parseNumber } = require("../utils/query");
+const {
+  escapeRegex,
+  normalizeText,
+  paginate,
+  parseNumber,
+  currentNightKey,
+  nightWindow,
+} = require("../utils/query");
 
 const router = express.Router();
 
@@ -15,41 +22,102 @@ const upcomingFilter = (now = new Date()) => ({
   $or: [{ endDate: { $gte: now } }, { endDate: null, startDate: { $gte: now } }],
 });
 
+// Just tonight: anything starting between 18:00 and 06:00 of the night that is
+// currently running, plus whatever is already under way. At 02:00 that is still
+// last evening's night — see currentNightKey.
+const tonightFilter = (now = new Date()) => {
+  const { from, to } = nightWindow(currentNightKey(now));
+
+  return {
+    $or: [
+      { startDate: { $gte: from, $lt: to } },
+      { startDate: { $lte: now }, endDate: { $gte: now } },
+    ],
+  };
+};
+
+// The host's live status, but only while it is still about tonight — a crowd
+// level left over from Saturday must not render as live on Tuesday.
+const liveNow = (store) => {
+  const live = store?.live;
+  // `always` pins a status open-endedly for demo venues; see stores.js.
+  const fresh =
+    live?.crowd && (live.always === true || live.dateKey === currentNightKey());
+  if (!fresh) return null;
+
+  return {
+    crowd: live.crowd,
+    waitMinutes: live.waitMinutes ?? null,
+    note: live.note || null,
+  };
+};
+
+// Accent-stripped title + description + lineup, so "μυλος" finds "Μύλος".
+const eventSearchText = (event) =>
+  normalizeText(
+    [event.title, event.description, ...(event.lineup || [])].join(" "),
+  );
+
 /* =========================
    GET /events
-   Paginated upcoming feed, 10 per page. ?genre= ?storeId= ?q=
+   Paginated upcoming feed, 10 per page. ?tonight=1 ?genre= ?storeId= ?q=
 ========================= */
 router.get("/", optionalAuth, async (req, res) => {
   try {
     const { page, limit, skip } = paginate(req.query, { defaultLimit: 10 });
 
-    const filter = upcomingFilter();
+    const filter =
+      req.query.tonight === "1" ? tonightFilter() : upcomingFilter();
 
     if (req.query.genre && req.query.genre !== "all") {
       filter.musicGenre = req.query.genre;
     }
 
-    if (req.query.storeId && mongoose.isValidObjectId(req.query.storeId)) {
-      filter.hostedBy = req.query.storeId;
+    if (req.query.storeId && ObjectId.isValid(req.query.storeId)) {
+      filter.hostedBy = new ObjectId(req.query.storeId);
     }
 
     if (req.query.q) {
-      // searchText is the accent-stripped mirror of title/description/lineup,
-      // so "μυλος" finds "Μύλος".
+      // searchText is the accent-stripped mirror of title/description/lineup.
       filter.searchText = new RegExp(escapeRegex(normalizeText(req.query.q)));
     }
 
+    const db = getDb();
+
     const [events, total] = await Promise.all([
-      Event.find(filter)
+      db
+        .collection("events")
+        .find(filter)
         .sort({ startDate: 1 })
         .skip(skip)
         .limit(limit)
-        .populate("hostedBy", "name images ratings area address location category")
-        .lean(),
-      Event.countDocuments(filter),
+        .toArray(),
+      db.collection("events").countDocuments(filter),
     ]);
 
-    const items = events.map((event) => decorate(event, req.userId));
+    // Stands in for populate: one extra query for the hosts on this page, then
+    // stitched in below. The cards want a flatter shape than the raw store doc.
+    const hostIds = [...new Set(events.map((e) => e.hostedBy).filter(Boolean))];
+    const hosts = await db
+      .collection("stores")
+      .find({ _id: { $in: hostIds } })
+      .project({
+        name: 1,
+        images: 1,
+        ratings: 1,
+        area: 1,
+        address: 1,
+        location: 1,
+        category: 1,
+        live: 1,
+        bookings: 1,
+      })
+      .toArray();
+
+    const byId = new Map(hosts.map((s) => [s._id.toString(), s]));
+    const items = events.map((event) =>
+      decorate(event, byId.get(event.hostedBy?.toString()), req.userId),
+    );
 
     res.json({
       items,
@@ -70,7 +138,10 @@ router.get("/", optionalAuth, async (req, res) => {
 ========================= */
 router.get("/genres", async (req, res) => {
   try {
-    const genres = await Event.distinct("musicGenre", upcomingFilter());
+    const genres = await getDb()
+      .collection("events")
+      .distinct("musicGenre", upcomingFilter());
+
     res.json(genres.filter(Boolean).sort());
   } catch (err) {
     console.error(err);
@@ -85,28 +156,60 @@ router.get("/genres", async (req, res) => {
 router.get("/:id", optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
-    const event = await Event.findById(id)
-      .populate(
-        "hostedBy",
-        "name images ratings area address location category phone instagram description",
-      )
-      .populate("attendants", "username profileImageUrl")
-      .lean();
+    const db = getDb();
+
+    const event = await db
+      .collection("events")
+      .findOne({ _id: new ObjectId(id) });
 
     if (!event) return res.status(404).json({ message: "Event not found" });
 
+    const attendantIds = event.attendants || [];
+
+    const [host, attendants] = await Promise.all([
+      event.hostedBy
+        ? db.collection("stores").findOne(
+            { _id: event.hostedBy },
+            {
+              projection: {
+                name: 1,
+                images: 1,
+                ratings: 1,
+                area: 1,
+                address: 1,
+                location: 1,
+                category: 1,
+                phone: 1,
+                instagram: 1,
+                description: 1,
+                // bookings comes along so the sheet knows whether to offer a
+                // table; live drives the "γεμίζει" badge.
+                bookings: 1,
+                live: 1,
+              },
+            },
+          )
+        : null,
+      attendantIds.length
+        ? db
+            .collection("users")
+            .find({ _id: { $in: attendantIds } })
+            .project({ username: 1, profileImageUrl: 1 })
+            .toArray()
+        : [],
+    ]);
+
     const attending = req.userId
-      ? (event.attendants || []).some(
-          (a) => a._id.toString() === req.userId.toString(),
-        )
+      ? attendantIds.some((a) => a.toString() === req.userId.toString())
       : false;
 
     res.json({
       ...event,
-      store: event.hostedBy || null,
-      attendantCount: event.attendants?.length ?? 0,
+      attendants,
+      store: host ? { ...host, live: liveNow(host) } : null,
+      attendantCount: attendantIds.length,
       attending,
     });
   } catch (err) {
@@ -118,32 +221,52 @@ router.get("/:id", optionalAuth, async (req, res) => {
 /* =========================
    POST /events/:id/attend    — join
    DELETE /events/:id/attend  — leave
-   Kept in sync on both sides: Event.attendants and User.onGoingEvents.
+   Kept in sync on both sides: the event's attendants and the user's
+   onGoingEvents.
 ========================= */
 router.post("/:id/attend", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
 
-    const event = await Event.findById(id).select("capacity attendants");
+    const db = getDb();
+    const eventId = new ObjectId(id);
+
+    const event = await db
+      .collection("events")
+      .findOne(
+        { _id: eventId },
+        { projection: { capacity: 1, attendants: 1 } },
+      );
+
     if (!event) return res.status(404).json({ message: "Event not found" });
 
-    const already = event.attendants.some(
+    const attendants = event.attendants || [];
+    const already = attendants.some(
       (a) => a.toString() === req.userId.toString(),
     );
 
-    if (!already && event.capacity && event.attendants.length >= event.capacity) {
+    if (!already && event.capacity && attendants.length >= event.capacity) {
       return res.status(409).json({ message: "Event is full" });
     }
 
     await Promise.all([
-      Event.updateOne({ _id: id }, { $addToSet: { attendants: req.userId } }),
-      User.updateOne({ _id: req.userId }, { $addToSet: { onGoingEvents: id } }),
+      db
+        .collection("events")
+        .updateOne({ _id: eventId }, { $addToSet: { attendants: req.userId } }),
+      db
+        .collection("users")
+        .updateOne(
+          { _id: req.userId },
+          { $addToSet: { onGoingEvents: eventId } },
+        ),
     ]);
 
-    const count = await Event.findById(id).select("attendants").lean();
+    const fresh = await db
+      .collection("events")
+      .findOne({ _id: eventId }, { projection: { attendants: 1 } });
 
-    res.json({ attending: true, attendantCount: count.attendants.length });
+    res.json({ attending: true, attendantCount: fresh.attendants.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -153,17 +276,27 @@ router.post("/:id/attend", requireAuth, async (req, res) => {
 router.delete("/:id/attend", requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return badId(res);
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const db = getDb();
+    const eventId = new ObjectId(id);
 
     await Promise.all([
-      Event.updateOne({ _id: id }, { $pull: { attendants: req.userId } }),
-      User.updateOne({ _id: req.userId }, { $pull: { onGoingEvents: id } }),
+      db
+        .collection("events")
+        .updateOne({ _id: eventId }, { $pull: { attendants: req.userId } }),
+      db
+        .collection("users")
+        .updateOne({ _id: req.userId }, { $pull: { onGoingEvents: eventId } }),
     ]);
 
-    const count = await Event.findById(id).select("attendants").lean();
-    if (!count) return res.status(404).json({ message: "Event not found" });
+    const fresh = await db
+      .collection("events")
+      .findOne({ _id: eventId }, { projection: { attendants: 1 } });
 
-    res.json({ attending: false, attendantCount: count.attendants.length });
+    if (!fresh) return res.status(404).json({ message: "Event not found" });
+
+    res.json({ attending: false, attendantCount: fresh.attendants.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -191,15 +324,22 @@ router.post("/", requireAuth, async (req, res) => {
     } = req.body;
 
     if (!title || !startDate) {
-      return res.status(400).json({ message: "Title and startDate are required" });
+      return res
+        .status(400)
+        .json({ message: "Title and startDate are required" });
     }
 
-    if (hostedBy && !mongoose.isValidObjectId(hostedBy)) {
+    if (hostedBy && !ObjectId.isValid(hostedBy)) {
       return res.status(400).json({ message: "Invalid store id" });
     }
 
+    const db = getDb();
+
     if (hostedBy) {
-      const store = await Store.findById(hostedBy).select("owner");
+      const store = await db
+        .collection("stores")
+        .findOne({ _id: new ObjectId(hostedBy) }, { projection: { owner: 1 } });
+
       if (!store) return res.status(404).json({ message: "Store not found" });
 
       const isOwner = store.owner?.toString() === req.userId.toString();
@@ -208,44 +348,57 @@ router.post("/", requireAuth, async (req, res) => {
       }
     }
 
-    const event = await Event.create({
+    const now = new Date();
+    const doc = {
       title,
       description,
       startDate: new Date(startDate),
-      endDate: endDate ? new Date(endDate) : undefined,
+      endDate: endDate ? new Date(endDate) : null,
       startHour,
       endHour,
       musicGenre,
-      lineup: Array.isArray(lineup) ? lineup : undefined,
+      lineup: Array.isArray(lineup) ? lineup : [],
       ticketPrice: parseNumber(ticketPrice) ?? 0,
       capacity: parseNumber(capacity) ?? undefined,
-      hostedBy,
-      images: Array.isArray(images) ? images : undefined,
+      hostedBy: hostedBy ? new ObjectId(hostedBy) : null,
+      images: Array.isArray(images) ? images : [],
       attendants: [],
-    });
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    res.status(201).json(event);
+    // The feed is paginated in mongo, so search has to be a database filter and
+    // cannot normalise in JS the way the (much smaller) store list does.
+    doc.searchText = eventSearchText(doc);
+
+    const { insertedId } = await db.collection("events").insertOne(doc);
+
+    res.status(201).json({ ...doc, _id: insertedId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// Flatten the populated host into the `store` shape the list cards render, and
-// answer "am I going?" without a second round trip.
-function decorate(event, userId) {
+// Flatten the host into the `store` shape the list cards render, and answer
+// "am I going?" without a second round trip.
+function decorate(event, host, userId) {
   const attendants = event.attendants || [];
 
   return {
     ...event,
-    store: event.hostedBy
+    store: host
       ? {
-          _id: event.hostedBy._id,
-          name: event.hostedBy.name,
-          image: event.hostedBy.images?.[0],
-          area: event.hostedBy.area,
-          ratings: event.hostedBy.ratings,
-          location: event.hostedBy.location,
+          _id: host._id,
+          name: host.name,
+          image: host.images?.[0],
+          area: host.area,
+          ratings: host.ratings,
+          location: host.location,
+          // Drives the "γεμίζει" badge on a card in the Tonight feed, and
+          // whether the card offers a table.
+          live: liveNow(host),
+          bookingsEnabled: !!host.bookings?.enabled,
         }
       : null,
     attendantCount: attendants.length,

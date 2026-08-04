@@ -1,15 +1,15 @@
-const mongoose = require("mongoose");
+const { ObjectId } = require("mongodb");
 
 // Every write route below goes through here, so the handlers can assume
 // req.userId is a valid ObjectId and stop repeating the session check.
 function requireAuth(req, res, next) {
   const id = req.session?.user?.id;
 
-  if (!id || !mongoose.isValidObjectId(id)) {
+  if (!id || !ObjectId.isValid(id)) {
     return res.status(401).json({ message: "Not authenticated" });
   }
 
-  req.userId = new mongoose.Types.ObjectId(id);
+  req.userId = new ObjectId(id);
   next();
 }
 
@@ -18,8 +18,8 @@ function requireAuth(req, res, next) {
 function optionalAuth(req, res, next) {
   const id = req.session?.user?.id;
 
-  if (id && mongoose.isValidObjectId(id)) {
-    req.userId = new mongoose.Types.ObjectId(id);
+  if (id && ObjectId.isValid(id)) {
+    req.userId = new ObjectId(id);
   }
   next();
 }
