@@ -21,7 +21,6 @@ import {
   Gift,
   ChevronRight,
   Ticket,
-  CreditCard,
   Store as StoreIcon,
   ChartNoAxesColumn,
 } from "lucide-react-native";
@@ -262,13 +261,6 @@ export default function ProfileScreen() {
               label="Στατιστικά"
               onPress={() => navigation.navigate("VenueAnalytics")}
             />
-            <View style={styles.divider} />
-            <LinkRow
-              Icon={CreditCard}
-              tone={T.warning}
-              label="Συνδρομή & χρεώσεις"
-              onPress={() => navigation.navigate("Billing")}
-            />
           </View>
         ) : (
           <View style={styles.group}>
@@ -287,6 +279,73 @@ export default function ProfileScreen() {
             />
           </View>
         )}
+
+        {/* ---- billing: the venue's own section, not a link to go hunting ---- */}
+        {isTenant ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Συνδρομή</Text>
+              <Pressable onPress={() => navigation.navigate("Billing")}>
+                <Text style={styles.sectionAction}>Διαχείριση</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.group}>
+              {venues.map((venue, index) => {
+                const sub = venue.subscription ?? {};
+                const tone = !sub.entitled
+                  ? T.danger
+                  : sub.onTrial
+                    ? T.warning
+                    : T.accent;
+
+                return (
+                  <View key={venue._id}>
+                    {index ? <View style={styles.divider} /> : null}
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.billingRow,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={() => navigation.navigate("Billing")}
+                    >
+                      <Image
+                        source={{ uri: venue.images?.[0] }}
+                        style={styles.billingImage}
+                      />
+
+                      <View style={styles.billingText}>
+                        <Text style={styles.billingVenue} numberOfLines={1}>
+                          {venue.name}
+                        </Text>
+                        <Text style={[styles.billingState, { color: tone }]}>
+                          {sub.onTrial
+                            ? `Δοκιμή · ${sub.trialDaysLeft} ${sub.trialDaysLeft === 1 ? "μέρα" : "μέρες"} ακόμα`
+                            : sub.entitled
+                              ? "Ενεργή"
+                              : "Δεν φαίνεσαι στον χάρτη"}
+                        </Text>
+                      </View>
+
+                      <ChevronRight
+                        size={16}
+                        color={T.textFaint}
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+                );
+              })}
+
+              {!venues.length ? (
+                <Text style={styles.billingEmpty}>
+                  Ο λογαριασμός σου δεν είναι συνδεδεμένος με μαγαζί ακόμα.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
         {/* ---- stamp cards ---- */}
         {!isTenant && loyalty.length ? (

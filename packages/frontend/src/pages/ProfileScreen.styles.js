@@ -148,6 +148,45 @@ export default StyleSheet.create({
     fontWeight: "700",
   },
 
+  /* ---- billing (tenant) ---- */
+  billingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+
+  billingImage: {
+    width: 34,
+    height: 34,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.elevated,
+  },
+
+  billingText: {
+    flex: 1,
+    gap: 2,
+  },
+
+  billingVenue: {
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  billingState: {
+    fontSize: 11.5,
+    fontWeight: "700",
+  },
+
+  billingEmpty: {
+    color: T.textFaint,
+    fontSize: 12.5,
+    lineHeight: 18,
+    padding: 14,
+  },
+
   /* ---- stamp cards ---- */
   cardRow: {
     flexDirection: "row",
