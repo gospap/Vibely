@@ -59,6 +59,15 @@ const INDEXES = {
     [{ store: 1, dateKey: 1 }],
   ],
 
+  offerclaims: [
+    // One claim per guest per offer — the same code is handed back on a second
+    // tap rather than a new one being minted. Keyed on the offer rather than
+    // the night, so replacing tonight's offer opens a fresh round of claims.
+    [{ offer: 1, user: 1 }, { unique: true }],
+    // The venue looks a code up at the bar.
+    [{ offer: 1, code: 1 }],
+  ],
+
   messages: [[{ conversationId: 1, createdAt: -1 }]],
 
   userpreferences: [[{ user: 1 }, { unique: true }]],

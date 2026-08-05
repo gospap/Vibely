@@ -36,9 +36,28 @@ const DEFAULT_PREFERENCES = {
   },
   privacy: {
     showAttendance: true,
+    // Whether friends can see which venue you checked into. Separate from
+    // showAttendance on purpose: declaring you are going to an event is a
+    // public intention, while a check-in says where you are standing.
+    showCheckIns: true,
     discoverable: true,
   },
 };
+
+// Anyone who has turned check-in sharing off is dropped before their name can
+// reach a friend's screen. Read straight from preferences rather than cached on
+// the user, so switching it off takes effect on the next request.
+async function checkInsHiddenFor(userIds) {
+  if (!userIds.length) return new Set();
+
+  const rows = await getDb()
+    .collection("userpreferences")
+    .find({ user: { $in: userIds }, "privacy.showCheckIns": false })
+    .project({ user: 1 })
+    .toArray();
+
+  return new Set(rows.map((r) => r.user.toString()));
+}
 
 const badId = (res) => res.status(400).json({ message: "Invalid user id" });
 
@@ -297,6 +316,144 @@ router.get("/me/loyalty", requireAuth, async (req, res) => {
       .filter(Boolean);
 
     res.json(cards);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   GET /users/me/friends/tonight
+   Which venues my friends are at or heading to tonight. The reason anyone
+   opens a nightlife app at 22:00.
+
+   Reservations are deliberately NOT a source here: a booking is a transaction
+   with the venue (it carries a phone number), not a social signal. Only the
+   two things a user knowingly makes visible are used, each behind its own
+   switch.
+========================= */
+router.get("/me/friends/tonight", requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+
+    const me = await db
+      .collection("users")
+      .findOne({ _id: req.userId }, { projection: { friends: 1 } });
+
+    const friendIds = me?.friends ?? [];
+    if (!friendIds.length) return res.json([]);
+
+    const tonight = currentNightKey();
+    const now = new Date();
+
+    const [checkIns, hiddenCheckIns, attending, hiddenAttendance] =
+      await Promise.all([
+        db
+          .collection("checkins")
+          .find({ user: { $in: friendIds }, dateKey: tonight })
+          .toArray(),
+
+        checkInsHiddenFor(friendIds),
+
+        db
+          .collection("events")
+          .find({
+            attendants: { $in: friendIds },
+            $or: [
+              { endDate: { $gte: now } },
+              { endDate: null, startDate: { $gte: now } },
+            ],
+          })
+          .project({ hostedBy: 1, attendants: 1, title: 1 })
+          .toArray(),
+
+        db
+          .collection("userpreferences")
+          .find({
+            user: { $in: friendIds },
+            "privacy.showAttendance": false,
+          })
+          .project({ user: 1 })
+          .toArray()
+          .then((rows) => new Set(rows.map((r) => r.user.toString()))),
+      ]);
+
+    // storeId -> { friendId -> "here" | "going" }. Standing in the venue beats
+    // planning to be there, so a check-in overwrites a plan.
+    const byStore = new Map();
+
+    const put = (storeId, userId, state) => {
+      const key = storeId.toString();
+      if (!byStore.has(key)) byStore.set(key, new Map());
+
+      const people = byStore.get(key);
+      if (state === "here" || !people.has(userId.toString())) {
+        people.set(userId.toString(), state);
+      }
+    };
+
+    for (const event of attending) {
+      if (!event.hostedBy) continue;
+      for (const attendant of event.attendants || []) {
+        const id = attendant.toString();
+        if (!friendIds.some((f) => f.toString() === id)) continue;
+        if (hiddenAttendance.has(id)) continue;
+        put(event.hostedBy, attendant, "going");
+      }
+    }
+
+    for (const checkIn of checkIns) {
+      if (hiddenCheckIns.has(checkIn.user.toString())) continue;
+      put(checkIn.store, checkIn.user, "here");
+    }
+
+    if (!byStore.size) return res.json([]);
+
+    const storeIds = [...byStore.keys()].map((id) => new ObjectId(id));
+    const peopleIds = [
+      ...new Set(
+        [...byStore.values()].flatMap((people) => [...people.keys()]),
+      ),
+    ].map((id) => new ObjectId(id));
+
+    const [stores, people] = await Promise.all([
+      db
+        .collection("stores")
+        .find({ _id: { $in: storeIds } })
+        .project({ name: 1, images: 1, area: 1, location: 1, category: 1 })
+        .toArray(),
+      db
+        .collection("users")
+        .find({ _id: { $in: peopleIds } })
+        .project({ username: 1, profileImageUrl: 1 })
+        .toArray(),
+    ]);
+
+    const personById = new Map(people.map((p) => [p._id.toString(), p]));
+
+    res.json(
+      stores
+        .map((store) => {
+          const entries = [...byStore.get(store._id.toString()).entries()];
+
+          return {
+            store: {
+              _id: store._id,
+              name: store.name,
+              image: store.images?.[0],
+              area: store.area,
+              category: store.category,
+              location: store.location,
+            },
+            here: entries.filter(([, s]) => s === "here").length,
+            friends: entries
+              .map(([id, state]) => ({ ...personById.get(id), state }))
+              .filter((f) => f.username),
+          };
+        })
+        // Busiest with friends first — that is the one worth showing.
+        .sort((a, b) => b.friends.length - a.friends.length),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

@@ -4,6 +4,7 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -12,6 +13,7 @@ import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
+  Activity,
   ArrowUp,
   ArrowUpLeft,
   ArrowUpRight,
@@ -533,6 +535,14 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : null}
+
+        <Pressable
+          style={styles.flowButton}
+          onPress={() => navigation.navigate("NightFlow")}
+        >
+          <Activity size={14} color={T.primary} strokeWidth={2.6} />
+          <Text style={styles.flowText}>Η ροή της βραδιάς</Text>
+        </Pressable>
       </View>
 
       {!followUser && hasLocation ? (

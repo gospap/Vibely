@@ -55,6 +55,7 @@ const NOTIFICATION_ROWS = [
 const PRIVACY_ROWS = [
   { key: "discoverable", label: "Να με βρίσκουν στην αναζήτηση" },
   { key: "showAttendance", label: "Να φαίνεται σε ποια events πάω" },
+  { key: "showCheckIns", label: "Να φαίνεται στους φίλους πού κάνω check-in" },
 ];
 
 export default function ProfileScreen() {

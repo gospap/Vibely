@@ -155,14 +155,23 @@ const shiftKey = (key, days) => {
     for (const guest of tonightsGuests) {
       const status = pick(OUTCOMES);
       const partySize = between(2, 6);
+      const arrivalTime = pick(SLOTS);
       const bookedAt = new Date(`${dateKey}T12:00:00`);
+
+      // The stamp is earned when they walk in, not when they booked. Anything
+      // past midnight belongs to the next calendar day even though it is still
+      // the same night — otherwise the flow chart has a hole at 00:00.
+      const [arriveHour] = arrivalTime.split(":").map(Number);
+      const arrivedAt = new Date(`${dateKey}T00:00:00`);
+      if (arriveHour < 6) arrivedAt.setDate(arrivedAt.getDate() + 1);
+      arrivedAt.setHours(arriveHour, between(0, 55), 0, 0);
 
       reservations.push({
         store: store._id,
         user: guest._id,
         event: null,
         dateKey,
-        arrivalTime: pick(SLOTS),
+        arrivalTime,
         partySize,
         status,
         note: pick(NOTES),
@@ -184,7 +193,7 @@ const shiftKey = (key, days) => {
           dateKey,
           source: "reservation",
           reservation: null,
-          createdAt: bookedAt,
+          createdAt: arrivedAt,
         });
       }
     }

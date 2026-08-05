@@ -30,6 +30,7 @@ import MyBookingsScreen from "@/pages/MyBookingsScreen";
 import VenueScreen from "@/pages/VenueScreen";
 import VenueReservationsScreen from "@/pages/VenueReservationsScreen";
 import VenueAnalyticsScreen from "@/pages/VenueAnalyticsScreen";
+import NightFlowScreen from "@/pages/NightFlowScreen";
 import { AuthContext } from "@/context/AuthContext";
 
 const Tab = createBottomTabNavigator();
@@ -269,6 +270,7 @@ export default function AppNavigator() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
       <Stack.Screen name="VenueAnalytics" component={VenueAnalyticsScreen} />
+      <Stack.Screen name="NightFlow" component={NightFlowScreen} />
     </Stack.Navigator>
   );
 }

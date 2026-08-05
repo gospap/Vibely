@@ -159,8 +159,74 @@ const at = (dateKey, hours, minutes = 0, dayOffset = 0) => {
     );
   }
 
+  // --- activity through the night, so the flow view has a shape ---
+  //
+  // Each kind of venue fills at its own hour: coffee early, bars at eleven,
+  // clubs at two. That curve is the whole point of the flow animation, so it
+  // has to be seeded rather than left to chance.
+  const PEAK_HOURS = {
+    cafe: [19, 20, 21],
+    beach: [19, 20, 21],
+    rooftop: [20, 21, 22],
+    live: [22, 23, 0],
+    bar: [22, 23, 0, 1],
+    club: [0, 1, 2, 3],
+  };
+
+  const guests = await db
+    .collection("users")
+    .find({ email: /demo\.vibely$/ })
+    .project({ _id: 1 })
+    .toArray();
+
+  if (!guests.length) {
+    console.log("\nNo demo guests, so no crowd to seed. Run demo:bookings --guests first.\n");
+    await getClient().close();
+    return;
+  }
+
+  const allStores = await db
+    .collection("stores")
+    .find({})
+    .project({ name: 1, category: 1 })
+    .toArray();
+
+  await db.collection("checkins").deleteMany({
+    dateKey: nightKey,
+    user: { $in: guests.map((g) => g._id) },
+  });
+
+  const checkIns = [];
+
+  for (const store of allStores) {
+    const hours = PEAK_HOURS[store.category] ?? PEAK_HOURS.bar;
+
+    // One check-in per guest per venue is all the unique index allows, so the
+    // crowd size is capped by how many demo guests exist.
+    for (const guest of guests) {
+      if (Math.random() > 0.55) continue;
+
+      const hour = hours[Math.floor(Math.random() * hours.length)];
+      const at = new Date(`${nightKey}T00:00:00`);
+      if (hour < 6) at.setDate(at.getDate() + 1);
+      at.setHours(hour, Math.floor(Math.random() * 60), 0, 0);
+
+      checkIns.push({
+        user: guest._id,
+        store: store._id,
+        dateKey: nightKey,
+        source: "code",
+        reservation: null,
+        createdAt: at,
+      });
+    }
+  }
+
+  if (checkIns.length) await db.collection("checkins").insertMany(checkIns);
+
+  console.log(`\nCrowd seeded: ${checkIns.length} check-ins across the night.`);
   console.log(
-    `\nDone. The Απόψε chip and the live badges should now have data.\n` +
+    `\nDone. The Απόψε chip, the live badges and η ροή της βραδιάς now have data.\n` +
       `Re-run this tomorrow — "tonight" moves, the data does not.\n`,
   );
 

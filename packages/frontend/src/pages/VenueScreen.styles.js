@@ -114,6 +114,77 @@ export default StyleSheet.create({
     fontWeight: "700",
   },
 
+  /* ---- tonight's offer ---- */
+  offerLive: {
+    gap: 4,
+    padding: 12,
+    borderRadius: T.radius.sm,
+    backgroundColor: "rgba(74,222,128,0.12)",
+  },
+
+  offerLiveTitle: {
+    color: T.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  offerLiveMeta: {
+    color: T.accent,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  offerRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+
+  offerInput: {
+    flex: 1,
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+    backgroundColor: T.surfaceAlt,
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+
+  offerInputFull: {
+    color: T.text,
+    fontSize: 14,
+    backgroundColor: T.surfaceAlt,
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+
+  offerButton: {
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    borderRadius: T.radius.sm,
+  },
+
+  offerSend: {
+    backgroundColor: T.primary,
+  },
+
+  offerCheck: {
+    backgroundColor: T.elevated,
+  },
+
+  offerButtonText: {
+    color: T.text,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+
+  offerClear: {
+    color: T.danger,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+
   /* ---- door code ---- */
   codeRow: {
     flexDirection: "row",

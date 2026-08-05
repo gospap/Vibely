@@ -5,6 +5,7 @@ import {
   Text,
   ScrollView,
   Pressable,
+  TextInput,
   RefreshControl,
   ActivityIndicator,
   Alert,
@@ -21,6 +22,7 @@ import {
   Radio,
   KeyRound,
   ChartNoAxesColumn,
+  Tag,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -75,6 +77,11 @@ export default function VenueScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [responding, setResponding] = useState(null);
 
+  const [offerTitle, setOfferTitle] = useState("");
+  const [offerUntil, setOfferUntil] = useState("23:00");
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+
   useEffect(() => {
     call("/stores/mine")
       .then((mine) => {
@@ -126,6 +133,40 @@ export default function VenueScreen() {
       );
     } catch (err) {
       Alert.alert("Δεν αποθηκεύτηκε", err.message);
+    }
+  };
+
+  const saveOffer = async (clear = false) => {
+    setOfferBusy(true);
+    try {
+      const { offer } = await call(`/stores/${storeId}/offer`, {
+        method: "PUT",
+        body: clear
+          ? { title: null }
+          : { title: offerTitle.trim(), until: offerUntil.trim() },
+      });
+
+      setStores((prev) =>
+        prev.map((s) => (s._id === storeId ? { ...s, offer } : s)),
+      );
+      if (clear) setOfferTitle("");
+    } catch (err) {
+      Alert.alert("Δεν αποθηκεύτηκε", err.message);
+    } finally {
+      setOfferBusy(false);
+    }
+  };
+
+  const redeem = async () => {
+    try {
+      const { guest } = await call(`/stores/${storeId}/offer/redeem`, {
+        method: "POST",
+        body: { code: redeemCode.trim() },
+      });
+      setRedeemCode("");
+      Alert.alert("Ισχύει", `${guest?.username ?? "Ο πελάτης"} — δώσ' του την προσφορά.`);
+    } catch (err) {
+      Alert.alert("Άκυρο", err.message);
     }
   };
 
@@ -268,6 +309,90 @@ export default function VenueScreen() {
               ? "Οι χρήστες το βλέπουν στον χάρτη. Πάτα ξανά για να το σβήσεις."
               : "Διάλεξε κατάσταση για να εμφανιστείς στο «Απόψε»."}
           </Text>
+        </View>
+
+        {/* ---- tonight's offer: the answer to a dead Tuesday ---- */}
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <Tag size={15} color={T.accent} strokeWidth={2.2} />
+            <Text style={styles.cardTitle}>Προσφορά απόψε</Text>
+          </View>
+
+          {store?.offer ? (
+            <>
+              <View style={styles.offerLive}>
+                <Text style={styles.offerLiveTitle}>{store.offer.title}</Text>
+                <Text style={styles.offerLiveMeta}>
+                  Έως {store.offer.until} · {store.offer.claimed} το πήραν
+                  {store.offer.left != null ? ` · μένουν ${store.offer.left}` : ""}
+                </Text>
+              </View>
+
+              <View style={styles.offerRow}>
+                <TextInput
+                  value={redeemCode}
+                  onChangeText={setRedeemCode}
+                  placeholder="Κωδικός πελάτη"
+                  placeholderTextColor={T.textFaint}
+                  style={styles.offerInput}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                />
+                <Pressable
+                  style={[styles.offerButton, styles.offerCheck]}
+                  onPress={redeem}
+                  disabled={redeemCode.trim().length !== 4}
+                >
+                  <Text style={styles.offerButtonText}>Έλεγχος</Text>
+                </Pressable>
+              </View>
+
+              <Pressable onPress={() => saveOffer(true)} disabled={offerBusy}>
+                <Text style={styles.offerClear}>Τερματισμός προσφοράς</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <TextInput
+                value={offerTitle}
+                onChangeText={setOfferTitle}
+                placeholder="π.χ. −20% σε όλα τα cocktails"
+                placeholderTextColor={T.textFaint}
+                style={styles.offerInputFull}
+                maxLength={80}
+              />
+
+              <View style={styles.offerRow}>
+                <TextInput
+                  value={offerUntil}
+                  onChangeText={setOfferUntil}
+                  placeholder="23:00"
+                  placeholderTextColor={T.textFaint}
+                  style={styles.offerInput}
+                  maxLength={5}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <Pressable
+                  style={[
+                    styles.offerButton,
+                    styles.offerSend,
+                    (!offerTitle.trim() || offerBusy) && { opacity: 0.45 },
+                  ]}
+                  onPress={() => saveOffer(false)}
+                  disabled={!offerTitle.trim() || offerBusy}
+                >
+                  <Text style={[styles.offerButtonText, { color: "#fff" }]}>
+                    Δημοσίευση
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.cardHint}>
+                Το βλέπουν όσοι είναι κοντά απόψε. Λήγει μόνο του στην ώρα που
+                θα βάλεις.
+              </Text>
+            </>
+          )}
         </View>
 
         {/* ---- door code ---- */}

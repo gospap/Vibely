@@ -10,12 +10,13 @@ import {
   RefreshControl,
   ScrollView,
 } from "react-native";
-import { CalendarX, Users } from "lucide-react-native";
+import { CalendarX, Users, Tag } from "lucide-react-native";
 
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
 import EmptyState from "@/components/EmptyState";
 import EventSheet from "./EventSheet";
+import OfferSheet from "./OfferSheet";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
 import { formatEventDate, formatPrice } from "@/utils/format";
@@ -42,6 +43,8 @@ export default function EventsScreen() {
   const [error, setError] = useState(null);
 
   const [selectedId, setSelectedId] = useState(null);
+  const [offers, setOffers] = useState([]);
+  const [offerStore, setOfferStore] = useState(null);
 
   // Guards against a stale response from an older filter overwriting the list.
   const requestId = useRef(0);
@@ -51,6 +54,15 @@ export default function EventsScreen() {
       .then((res) => (res.ok ? res.json() : []))
       .then(setGenres)
       .catch(() => setGenres([]));
+  }, []);
+
+  // Tonight's offers. Loaded once on mount rather than with the feed — they
+  // are about right now, not about whatever the filters happen to say.
+  useEffect(() => {
+    fetch(`${API_URL}/stores?offers=1`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : []))
+      .then(setOffers)
+      .catch(() => setOffers([]));
   }, []);
 
   useEffect(() => {
@@ -230,6 +242,43 @@ export default function EventsScreen() {
         ))}
       </ScrollView>
 
+      {/* Tonight's offers ride above the feed — they expire in hours, the
+          events do not. */}
+      {offers.length ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.offers}
+          style={styles.offersRow}
+        >
+          {offers.map((store) => (
+            <Pressable
+              key={store._id}
+              style={styles.offerCard}
+              onPress={() => setOfferStore(store)}
+            >
+              <View style={styles.offerTag}>
+                <Tag size={11} color={T.accent} strokeWidth={2.6} />
+                <Text style={styles.offerTagText}>Απόψε</Text>
+              </View>
+
+              <Text style={styles.offerTitle} numberOfLines={2}>
+                {store.offer.title}
+              </Text>
+
+              <Text style={styles.offerVenue} numberOfLines={1}>
+                {store.name}
+              </Text>
+
+              <Text style={styles.offerMeta}>
+                Έως {store.offer.until}
+                {store.offer.left != null ? ` · ${store.offer.left} ακόμα` : ""}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {loading ? (
@@ -280,6 +329,23 @@ export default function EventsScreen() {
         eventId={selectedId}
         onClose={() => setSelectedId(null)}
         onAttendanceChange={onAttendanceChange}
+      />
+
+      <OfferSheet
+        storeId={offerStore?._id}
+        store={offerStore}
+        offer={offerStore?.offer}
+        onClose={() => setOfferStore(null)}
+        // A claimed-out offer drops off the strip, same as it does server-side.
+        onClaimed={({ offer }) =>
+          setOffers((prev) =>
+            offer
+              ? prev.map((s) =>
+                  s._id === offerStore._id ? { ...s, offer } : s,
+                )
+              : prev.filter((s) => s._id !== offerStore._id),
+          )
+        }
       />
     </SafeAreaView>
   );
