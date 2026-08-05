@@ -9,8 +9,14 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { Tag, Clock, Crown, PartyPopper } from "lucide-react-native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  Tag,
+  Clock,
+  Crown,
+  PartyPopper,
+  ChevronLeft,
+} from "lucide-react-native";
 
 import EmptyState from "@/components/EmptyState";
 import SearchField from "@/components/SearchField";
@@ -23,6 +29,8 @@ import styles from "./OffersScreen.styles";
 // Everything a guest can get for free or cheaper tonight, in one place. The
 // venues are already sorted promoted-first by the API.
 export default function OffersScreen() {
+  const navigation = useNavigation();
+
   const [offers, setOffers] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -64,7 +72,16 @@ export default function OffersScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
+          <Pressable
+            style={styles.back}
+            onPress={() => navigation.goBack()}
+            hitSlop={8}
+          >
+            <ChevronLeft size={22} color={T.text} strokeWidth={2.2} />
+          </Pressable>
+
           <Text style={styles.screenTitle}>Προσφορές</Text>
+
           {offers.length ? (
             <Text style={styles.count}>{offers.length} απόψε</Text>
           ) : null}

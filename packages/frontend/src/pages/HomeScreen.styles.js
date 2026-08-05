@@ -28,6 +28,27 @@ export default StyleSheet.create({
     height: 46,
   },
 
+  offersPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    marginTop: 8,
+    paddingLeft: 12,
+    paddingRight: 9,
+    paddingVertical: 9,
+    borderRadius: T.radius.pill,
+    backgroundColor: "rgba(13, 13, 15, 0.94)",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.45)",
+  },
+
+  offersPillText: {
+    color: T.accent,
+    fontSize: 12.5,
+    fontWeight: "800",
+  },
+
   filterPanel: {
     flexDirection: "row",
     flexWrap: "wrap",

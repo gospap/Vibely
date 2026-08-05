@@ -19,6 +19,8 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   ArrowUp,
   Crown,
+  Tag,
+  ChevronRight,
   ArrowUpLeft,
   ArrowUpRight,
   Clock3,
@@ -102,6 +104,10 @@ export default function HomeScreen() {
   const searchInput = useRef(null);
   const [category, setCategory] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // How many venues have something on right now. Only the number is needed
+  // here; the page itself fetches the detail.
+  const offerCount = stores.filter((store) => store.offer).length;
 
   // Results are only up while the box has focus and there is something typed —
   // an empty query would otherwise dump every pin on the map into a list.
@@ -621,6 +627,22 @@ export default function HomeScreen() {
               </Pressable>
             ) : null}
           </View>
+        ) : null}
+
+        {/* The way into Προσφορές, which is a full page rather than a tab. The
+            count is the hook — "3 προσφορές" is a reason to tap, "Προσφορές"
+            on its own is not. */}
+        {offerCount && !searching && !filtersOpen ? (
+          <Pressable
+            style={styles.offersPill}
+            onPress={() => navigation.navigate("Offers")}
+          >
+            <Tag size={13} color={T.accent} strokeWidth={2.6} />
+            <Text style={styles.offersPillText}>
+              {offerCount} {offerCount === 1 ? "προσφορά" : "προσφορές"} απόψε
+            </Text>
+            <ChevronRight size={14} color={T.accent} strokeWidth={2.4} />
+          </Pressable>
         ) : null}
 
         {/* Behind the bar's filter icon: on a map, a permanent row of chips

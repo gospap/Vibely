@@ -18,7 +18,6 @@ import {
   User,
   Store,
   CalendarCheck,
-  Tag,
 } from "lucide-react-native";
 
 import HomeScreen from "@/pages/HomeScreen";
@@ -41,7 +40,6 @@ const Stack = createNativeStackNavigator();
 const TABS = [
   { name: "Home", label: "Χάρτης", Icon: House },
   { name: "Events", label: "Events", Icon: CalendarDays },
-  { name: "Offers", label: "Προσφορές", Icon: Tag },
   { name: "Community", label: "Κοινότητα", Icon: Users },
   { name: "Profile", label: "Προφίλ", Icon: User },
 ];
@@ -61,7 +59,6 @@ const SCREENS = {
   Venue: VenueScreen,
   Reservations: VenueReservationsScreen,
   Events: EventsScreen,
-  Offers: OffersScreen,
   Community: CommunityScreen,
   Profile: ProfileScreen,
 };
@@ -275,6 +272,7 @@ export default function AppNavigator() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
       <Stack.Screen name="VenueAnalytics" component={VenueAnalyticsScreen} />
+      <Stack.Screen name="Offers" component={OffersScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="Billing" component={BillingScreen} />
     </Stack.Navigator>

@@ -16,8 +16,16 @@ export default StyleSheet.create({
 
   headerTop: {
     flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 4,
+  },
+
+  back: {
+    width: 30,
+    height: 34,
+    marginLeft: -8,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   screenTitle: {
