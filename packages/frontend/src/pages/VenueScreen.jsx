@@ -3,8 +3,10 @@ import {
   SafeAreaView,
   View,
   Text,
+  Image,
   ScrollView,
   Pressable,
+  TextInput,
   RefreshControl,
   ActivityIndicator,
   Alert,
@@ -21,6 +23,9 @@ import {
   Radio,
   KeyRound,
   ChartNoAxesColumn,
+  Tag,
+  TriangleAlert,
+  CreditCard,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -75,6 +80,11 @@ export default function VenueScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [responding, setResponding] = useState(null);
 
+  const [offerTitle, setOfferTitle] = useState("");
+  const [offerUntil, setOfferUntil] = useState("23:00");
+  const [offerBusy, setOfferBusy] = useState(false);
+  const [redeemCode, setRedeemCode] = useState("");
+
   useEffect(() => {
     call("/stores/mine")
       .then((mine) => {
@@ -108,8 +118,19 @@ export default function VenueScreen() {
     }, [load]),
   );
 
-  const store = stores.find((s) => s._id === storeId);
+  const index = Math.max(
+    0,
+    stores.findIndex((s) => s._id === storeId),
+  );
+  const store = stores[index];
   const isTonight = dateKey === currentNightKey();
+
+  // Wraps around, so three venues cycle rather than dead-ending at either edge.
+  const step = (delta) => {
+    if (stores.length < 2) return;
+    const next = (index + delta + stores.length) % stores.length;
+    setStoreId(stores[next]._id);
+  };
 
   const setLive = async (crowd) => {
     // Tapping the active level again turns reporting off, which is how a venue
@@ -126,6 +147,40 @@ export default function VenueScreen() {
       );
     } catch (err) {
       Alert.alert("Δεν αποθηκεύτηκε", err.message);
+    }
+  };
+
+  const saveOffer = async (clear = false) => {
+    setOfferBusy(true);
+    try {
+      const { offer } = await call(`/stores/${storeId}/offer`, {
+        method: "PUT",
+        body: clear
+          ? { title: null }
+          : { title: offerTitle.trim(), until: offerUntil.trim() },
+      });
+
+      setStores((prev) =>
+        prev.map((s) => (s._id === storeId ? { ...s, offer } : s)),
+      );
+      if (clear) setOfferTitle("");
+    } catch (err) {
+      Alert.alert("Δεν αποθηκεύτηκε", err.message);
+    } finally {
+      setOfferBusy(false);
+    }
+  };
+
+  const redeem = async () => {
+    try {
+      const { guest } = await call(`/stores/${storeId}/offer/redeem`, {
+        method: "POST",
+        body: { code: redeemCode.trim() },
+      });
+      setRedeemCode("");
+      Alert.alert("Ισχύει", `${guest?.username ?? "Ο πελάτης"} — δώσ' του την προσφορά.`);
+    } catch (err) {
+      Alert.alert("Άκυρο", err.message);
     }
   };
 
@@ -199,11 +254,49 @@ export default function VenueScreen() {
           />
         }
       >
+        {/* A trial that lapses quietly costs the venue its map pin, so it is
+            called out above everything else once it is close. */}
+        {store?.subscription && !store.subscription.entitled ? (
+          <Pressable
+            style={[styles.billing, styles.billingLapsed]}
+            onPress={() => navigation.navigate("Billing")}
+          >
+            <TriangleAlert size={15} color={T.danger} strokeWidth={2.4} />
+            <Text style={[styles.billingText, { color: T.danger }]}>
+              Δεν φαίνεσαι στον χάρτη — ενεργοποίησε συνδρομή
+            </Text>
+            <ChevronRight size={16} color={T.danger} strokeWidth={2.2} />
+          </Pressable>
+        ) : store?.subscription?.onTrial &&
+          store.subscription.trialDaysLeft <= 5 ? (
+          <Pressable
+            style={[styles.billing, styles.billingTrial]}
+            onPress={() => navigation.navigate("Billing")}
+          >
+            <Clock size={15} color={T.warning} strokeWidth={2.4} />
+            <Text style={[styles.billingText, { color: T.warning }]}>
+              Η δοκιμή λήγει σε {store.subscription.trialDaysLeft}{" "}
+              {store.subscription.trialDaysLeft === 1 ? "μέρα" : "μέρες"}
+            </Text>
+            <ChevronRight size={16} color={T.warning} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{store?.name}</Text>
+          <Text style={styles.title}>Μαγαζί</Text>
+
+          {/* Always reachable. The banners below only appear when the trial is
+              nearly out, and billing has to be findable before then. */}
+          <Pressable
+            style={styles.headerIcon}
+            onPress={() => navigation.navigate("Billing")}
+            hitSlop={8}
+          >
+            <CreditCard size={18} color={T.textMuted} strokeWidth={2.3} />
+          </Pressable>
 
           <Pressable
-            style={styles.analytics}
+            style={styles.headerIcon}
             onPress={() => navigation.navigate("VenueAnalytics")}
             hitSlop={8}
           >
@@ -211,29 +304,61 @@ export default function VenueScreen() {
           </Pressable>
         </View>
 
-        {stores.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chips}
-          >
-            {stores.map((s) => {
-              const active = s._id === storeId;
-              return (
-                <Pressable
-                  key={s._id}
-                  onPress={() => setStoreId(s._id)}
-                  style={[styles.chip, active && styles.chipActive]}
+        {/* Which venue you are managing. Same row as an event card, rounded
+            because this one sits on top rather than in a stacked list. */}
+        {store ? (
+          <View style={styles.storeCard}>
+            <Image source={{ uri: store.images?.[0] }} style={styles.storeImage} />
+
+            <View style={styles.storeBody}>
+              <Text style={styles.storeName} numberOfLines={1}>
+                {store.name}
+              </Text>
+              <Text style={styles.storeMeta} numberOfLines={1}>
+                {store.area}
+                {store.category ? ` · ${store.category}` : ""}
+              </Text>
+
+              {store.subscription ? (
+                <Text
+                  style={[
+                    styles.storePlan,
+                    !store.subscription.entitled && { color: T.danger },
+                  ]}
                 >
-                  <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
-                  >
-                    {s.name}
-                  </Text>
+                  {store.subscription.onTrial
+                    ? `Δοκιμή · ${store.subscription.trialDaysLeft} μέρες`
+                    : store.subscription.entitled
+                      ? "Ενεργή συνδρομή"
+                      : "Χωρίς συνδρομή"}
+                </Text>
+              ) : null}
+            </View>
+
+            {stores.length > 1 ? (
+              <View style={styles.switcher}>
+                <Pressable
+                  style={styles.switchArrow}
+                  onPress={() => step(-1)}
+                  hitSlop={6}
+                >
+                  <ChevronLeft size={17} color={T.text} strokeWidth={2.4} />
                 </Pressable>
-              );
-            })}
-          </ScrollView>
+
+                <Text style={styles.switchCount}>
+                  {index + 1}/{stores.length}
+                </Text>
+
+                <Pressable
+                  style={styles.switchArrow}
+                  onPress={() => step(1)}
+                  hitSlop={6}
+                >
+                  <ChevronRight size={17} color={T.text} strokeWidth={2.4} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
         ) : null}
 
         {/* ---- live status: always about tonight ---- */}
@@ -268,6 +393,90 @@ export default function VenueScreen() {
               ? "Οι χρήστες το βλέπουν στον χάρτη. Πάτα ξανά για να το σβήσεις."
               : "Διάλεξε κατάσταση για να εμφανιστείς στο «Απόψε»."}
           </Text>
+        </View>
+
+        {/* ---- tonight's offer: the answer to a dead Tuesday ---- */}
+        <View style={styles.card}>
+          <View style={styles.cardHead}>
+            <Tag size={15} color={T.accent} strokeWidth={2.2} />
+            <Text style={styles.cardTitle}>Προσφορά απόψε</Text>
+          </View>
+
+          {store?.offer ? (
+            <>
+              <View style={styles.offerLive}>
+                <Text style={styles.offerLiveTitle}>{store.offer.title}</Text>
+                <Text style={styles.offerLiveMeta}>
+                  Έως {store.offer.until} · {store.offer.claimed} το πήραν
+                  {store.offer.left != null ? ` · μένουν ${store.offer.left}` : ""}
+                </Text>
+              </View>
+
+              <View style={styles.offerRow}>
+                <TextInput
+                  value={redeemCode}
+                  onChangeText={setRedeemCode}
+                  placeholder="Κωδικός πελάτη"
+                  placeholderTextColor={T.textFaint}
+                  style={styles.offerInput}
+                  autoCapitalize="characters"
+                  maxLength={4}
+                />
+                <Pressable
+                  style={[styles.offerButton, styles.offerCheck]}
+                  onPress={redeem}
+                  disabled={redeemCode.trim().length !== 4}
+                >
+                  <Text style={styles.offerButtonText}>Έλεγχος</Text>
+                </Pressable>
+              </View>
+
+              <Pressable onPress={() => saveOffer(true)} disabled={offerBusy}>
+                <Text style={styles.offerClear}>Τερματισμός προσφοράς</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <TextInput
+                value={offerTitle}
+                onChangeText={setOfferTitle}
+                placeholder="π.χ. −20% σε όλα τα cocktails"
+                placeholderTextColor={T.textFaint}
+                style={styles.offerInputFull}
+                maxLength={80}
+              />
+
+              <View style={styles.offerRow}>
+                <TextInput
+                  value={offerUntil}
+                  onChangeText={setOfferUntil}
+                  placeholder="23:00"
+                  placeholderTextColor={T.textFaint}
+                  style={styles.offerInput}
+                  maxLength={5}
+                  keyboardType="numbers-and-punctuation"
+                />
+                <Pressable
+                  style={[
+                    styles.offerButton,
+                    styles.offerSend,
+                    (!offerTitle.trim() || offerBusy) && { opacity: 0.45 },
+                  ]}
+                  onPress={() => saveOffer(false)}
+                  disabled={!offerTitle.trim() || offerBusy}
+                >
+                  <Text style={[styles.offerButtonText, { color: "#fff" }]}>
+                    Δημοσίευση
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.cardHint}>
+                Το βλέπουν όσοι είναι κοντά απόψε. Λήγει μόνο του στην ώρα που
+                θα βάλεις.
+              </Text>
+            </>
+          )}
         </View>
 
         {/* ---- door code ---- */}

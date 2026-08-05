@@ -21,6 +21,9 @@ import {
   CalendarPlus,
   Gift,
   Radio,
+  Tag,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -28,6 +31,7 @@ import Button from "@/components/Button";
 import RatingStars from "@/components/RatingStars";
 import PhotoCarousel from "@/components/PhotoCarousel";
 import BookingSheet from "./BookingSheet";
+import OfferSheet from "./OfferSheet";
 import { API_URL } from "@/constants/api";
 import {
   formatEventDate,
@@ -73,6 +77,7 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
   const [saved, setSaved] = useState(false);
 
   const [booking, setBooking] = useState(false);
+  const [offering, setOffering] = useState(false);
   const [loyalty, setLoyalty] = useState(null);
   const [codeDraft, setCodeDraft] = useState("");
   const [checkingIn, setCheckingIn] = useState(false);
@@ -235,6 +240,15 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
               </View>
 
               <View style={styles.body}>
+                {store.promoted ? (
+                  <View style={styles.promotedTag}>
+                    <Sparkles size={11} color="#1a1400" strokeWidth={2.8} />
+                    <Text style={styles.promotedTagText}>
+                      {store.promoted.label}
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={styles.titleRow}>
                   <Text style={styles.title}>{store.name}</Text>
 
@@ -286,6 +300,33 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
                     <Phone size={13} color={T.textFaint} strokeWidth={2} />
                     <Text style={styles.hours}>{store.phone}</Text>
                   </View>
+                ) : null}
+
+                {/* Tonight's offer sits above everything else — it is the
+                    reason to come out now rather than some other night. */}
+                {store.offer ? (
+                  <Pressable
+                    style={styles.offer}
+                    onPress={() => setOffering(true)}
+                  >
+                    <View style={styles.offerIcon}>
+                      <Tag size={16} color={T.accent} strokeWidth={2.4} />
+                    </View>
+
+                    <View style={styles.offerText}>
+                      <Text style={styles.offerTitle} numberOfLines={2}>
+                        {store.offer.title}
+                      </Text>
+                      <Text style={styles.offerMeta}>
+                        Έως {store.offer.until}
+                        {store.offer.left != null
+                          ? ` · μένουν ${store.offer.left}`
+                          : ""}
+                      </Text>
+                    </View>
+
+                    <ChevronRight size={18} color={T.textFaint} strokeWidth={2.2} />
+                  </Pressable>
                 ) : null}
 
                 {store.description ? (
@@ -527,6 +568,17 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
         storeId={booking ? storeId : null}
         store={store}
         onClose={() => setBooking(false)}
+      />
+
+      <OfferSheet
+        storeId={offering ? storeId : null}
+        store={store}
+        offer={store?.offer}
+        onClose={() => setOffering(false)}
+        // Reflect the new count without refetching the whole sheet.
+        onClaimed={({ offer }) =>
+          setStore((prev) => (prev ? { ...prev, offer } : prev))
+        }
       />
     </Modal>
   );

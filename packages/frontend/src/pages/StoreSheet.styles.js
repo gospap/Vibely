@@ -88,6 +88,27 @@ export default StyleSheet.create({
     color: T.danger,
   },
 
+  /* ---- promoted (paid placement) ---- */
+  promotedTag: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: -4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: T.radius.pill,
+    backgroundColor: T.warning,
+  },
+
+  promotedTagText: {
+    color: "#1a1400",
+    fontSize: 10.5,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+
   /* ---- live tonight ---- */
   liveTag: {
     flexDirection: "row",
@@ -103,6 +124,45 @@ export default StyleSheet.create({
     color: T.primary,
     fontSize: 11.5,
     fontWeight: "800",
+  },
+
+  /* ---- tonight's offer ---- */
+  offer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: T.radius.md,
+    backgroundColor: "rgba(74,222,128,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.28)",
+  },
+
+  offerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(74,222,128,0.16)",
+  },
+
+  offerText: {
+    flex: 1,
+    gap: 3,
+  },
+
+  offerTitle: {
+    color: T.text,
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+
+  offerMeta: {
+    color: T.accent,
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   /* ---- stamp card ---- */

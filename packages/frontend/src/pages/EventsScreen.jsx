@@ -8,13 +8,13 @@ import {
   SafeAreaView,
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
 } from "react-native";
 import { CalendarX, Users } from "lucide-react-native";
 
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
 import EmptyState from "@/components/EmptyState";
+import PromotedCard from "@/components/PromotedCard";
 import EventSheet from "./EventSheet";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
@@ -33,6 +33,7 @@ export default function EventsScreen() {
   const [genres, setGenres] = useState([]);
   const [genre, setGenre] = useState("all");
   const [tonight, setTonight] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
@@ -42,6 +43,7 @@ export default function EventsScreen() {
   const [error, setError] = useState(null);
 
   const [selectedId, setSelectedId] = useState(null);
+  const [promoted, setPromoted] = useState([]);
 
   // Guards against a stale response from an older filter overwriting the list.
   const requestId = useRef(0);
@@ -89,6 +91,7 @@ export default function EventsScreen() {
       if (!fresh) return;
 
       setEvents(data.items);
+      setPromoted(data.promoted ?? []);
       setHasMore(data.hasMore);
       setTotal(data.total);
       setPage(1);
@@ -138,31 +141,27 @@ export default function EventsScreen() {
       ),
     );
 
+  // Same shape as the promoted banner, minus the diagonal: a short full-width
+  // row, so scrolling is one column of consistent bars rather than a grid.
   const renderItem = ({ item }) => (
     <Pressable
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
       onPress={() => setSelectedId(item._id)}
     >
-      <View>
-        <Image source={{ uri: item.images?.[0] }} style={styles.image} />
-
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>
-            {formatEventDate(item.startDate)}
-          </Text>
-        </View>
-
-        {item.attending ? (
-          <View style={styles.goingBadge}>
-            <Text style={styles.goingBadgeText}>Θα πάω</Text>
-          </View>
-        ) : null}
-      </View>
+      <Image source={{ uri: item.images?.[0] }} style={styles.image} />
 
       <View style={styles.cardBody}>
-        <Text style={styles.title} numberOfLines={2}>
-          {item.title}
-        </Text>
+        <View style={styles.cardTop}>
+          <Text style={styles.title} numberOfLines={1}>
+            {item.title}
+          </Text>
+
+          {item.attending ? (
+            <View style={styles.goingBadge}>
+              <Text style={styles.goingBadgeText}>Θα πάω</Text>
+            </View>
+          ) : null}
+        </View>
 
         <Text style={styles.store} numberOfLines={1}>
           {item.store?.name}
@@ -170,19 +169,23 @@ export default function EventsScreen() {
         </Text>
 
         <View style={styles.cardFooter}>
-          <Text style={styles.genre} numberOfLines={1}>
-            {item.musicGenre}
+          <Text style={styles.when}>
+            {formatEventDate(item.startDate)} · {item.startHour}
           </Text>
 
+          {item.musicGenre ? (
+            <Text style={styles.genre} numberOfLines={1}>
+              {item.musicGenre}
+            </Text>
+          ) : null}
+
           <View style={styles.attendants}>
-            <Users size={11} color={T.textFaint} strokeWidth={2.2} />
+            <Users size={10} color={T.textFaint} strokeWidth={2.2} />
             <Text style={styles.attendantsText}>{item.attendantCount ?? 0}</Text>
           </View>
-        </View>
 
-        <Text style={styles.price}>
-          {item.startHour} · {formatPrice(item.ticketPrice)}
-        </Text>
+          <Text style={styles.price}>{formatPrice(item.ticketPrice)}</Text>
+        </View>
       </View>
     </Pressable>
   );
@@ -201,34 +204,46 @@ export default function EventsScreen() {
           value={query}
           onChangeText={setQuery}
           placeholder="Ψάξε event, dj ή μαγαζί"
+          onFilterPress={() => setFiltersOpen((open) => !open)}
+          filtersOpen={filtersOpen}
+          filterCount={(tonight ? 1 : 0) + (genre === "all" ? 0 : 1)}
         />
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.chips}
-        style={styles.chipsRow}
-      >
-        <Chip
-          label="Απόψε"
-          active={tonight}
-          onPress={() => setTonight((on) => !on)}
-        />
-        <Chip
-          label="Όλα"
-          active={genre === "all"}
-          onPress={() => setGenre("all")}
-        />
-        {genres.map((g) => (
+      {/* Filters are folded behind the bar's icon so the feed starts higher up.
+          They wrap rather than scroll sideways, so nothing is hidden off-edge. */}
+      {filtersOpen ? (
+        <View style={styles.filterPanel}>
           <Chip
-            key={g}
-            label={g}
-            active={genre === g}
-            onPress={() => setGenre(g)}
+            label="Απόψε"
+            active={tonight}
+            onPress={() => setTonight((on) => !on)}
           />
-        ))}
-      </ScrollView>
+          <Chip
+            label="Όλα"
+            active={genre === "all"}
+            onPress={() => setGenre("all")}
+          />
+          {genres.map((g) => (
+            <Chip
+              key={g}
+              label={g}
+              active={genre === g}
+              onPress={() => setGenre(g)}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {/* Paid placement as a full-bleed banner above the feed. The list below
+          keeps the order the filters asked for. */}
+      {promoted.map((event) => (
+        <PromotedCard
+          key={event._id}
+          event={event}
+          onPress={() => setSelectedId(event._id)}
+        />
+      ))}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -239,8 +254,6 @@ export default function EventsScreen() {
           data={events}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
-          numColumns={2}
-          columnWrapperStyle={styles.column}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           onEndReached={loadMore}
@@ -281,6 +294,7 @@ export default function EventsScreen() {
         onClose={() => setSelectedId(null)}
         onAttendanceChange={onAttendanceChange}
       />
+
     </SafeAreaView>
   );
 }

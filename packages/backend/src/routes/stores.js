@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { ObjectId } = require("mongodb");
 const { getDb } = require("../../db");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
+const { entitlement } = require("../utils/trial");
 const {
   normalizeText,
   haversineKm,
@@ -44,7 +45,54 @@ const withLive = (store) => {
           updatedAt: live.updatedAt || null,
         }
       : null,
+    offer: liveOffer(store),
+    promoted: livePromotion(store),
   };
+};
+
+// Paid placement. Time-boxed so a promotion that was not renewed drops off on
+// its own rather than running forever, and only ever surfaced as a labelled
+// badge — a promoted venue is marked as such, never disguised as a normal one.
+const livePromotion = (store, now = new Date()) => {
+  const promoted = store?.promoted;
+  if (!promoted?.until || new Date(promoted.until) <= now) return null;
+
+  return {
+    label: promoted.label || "Προτεινόμενο",
+    until: promoted.until,
+  };
+};
+
+// Tonight's offer, but only while it is still running. Expiry is an absolute
+// timestamp rather than an "until" string, because an offer that ends at 01:00
+// ends on the *next* calendar day and a string cannot say that.
+const liveOffer = (store, now = new Date()) => {
+  const offer = store?.offer;
+  if (!offer?.title || !offer.expiresAt) return null;
+  if (new Date(offer.expiresAt) <= now) return null;
+
+  // A capped offer disappears once it is taken up.
+  if (offer.claimLimit != null && (offer.claimed ?? 0) >= offer.claimLimit) {
+    return null;
+  }
+
+  return {
+    title: offer.title,
+    detail: offer.detail || null,
+    until: offer.until,
+    expiresAt: offer.expiresAt,
+    claimLimit: offer.claimLimit ?? null,
+    claimed: offer.claimed ?? 0,
+    left: offer.claimLimit != null ? offer.claimLimit - (offer.claimed ?? 0) : null,
+  };
+};
+
+// Promoted venues rise to the top of whatever list they are in, but the order
+// within each group is left alone — so distance sorting still holds for the
+// paid ones and for everyone else.
+const promotedFirst = (stores) => {
+  const rank = (s) => (s.promoted ? 0 : 1);
+  return [...stores].sort((a, b) => rank(a) - rank(b));
 };
 
 // A tenant may only act on a store they own; superadmin passes for support.
@@ -57,13 +105,44 @@ async function ownedStore(storeId, req) {
     .collection("stores")
     .findOne(
       { _id: new ObjectId(storeId) },
-      { projection: { owner: 1, name: 1, bookings: 1, loyalty: 1 } },
+      {
+        projection: {
+          owner: 1,
+          name: 1,
+          bookings: 1,
+          loyalty: 1,
+          subscription: 1,
+        },
+      },
     );
 
   if (!store) return null;
 
   const isOwner = store.owner?.toString() === req.userId.toString();
   if (!isOwner && req.session.user?.type !== "superadmin") return null;
+
+  return store;
+}
+
+// Same as ownedStore, but also refuses when the venue has stopped paying.
+// Wraps the write actions a lapsed venue must not perform — reading its own
+// sheet stays open, so it can still see the bookings it already owes people.
+async function billableStore(storeId, req, res) {
+  const store = await ownedStore(storeId, req);
+
+  if (!store) {
+    res.status(403).json({ message: "Not your store" });
+    return null;
+  }
+
+  const state = entitlement(store);
+  if (!state.entitled && req.session.user?.type !== "superadmin") {
+    res.status(402).json({
+      message: "Η συνδρομή σου έχει λήξει",
+      subscription: state,
+    });
+    return null;
+  }
 
   return store;
 }
@@ -144,7 +223,10 @@ router.get("/", optionalAuth, async (req, res) => {
       filter.category = category;
     }
 
-    let stores = await getDb().collection("stores").find(filter).toArray();
+    // A venue that is not paying (and out of trial) drops off the map. Its
+    // detail page still resolves, so a guest holding a booking can reach it.
+    let stores = (await getDb().collection("stores").find(filter).toArray())
+      .filter((store) => entitlement(store).entitled);
 
     // Matching happens here rather than in mongo because a Greek search has to
     // ignore accents ("βαλαωριτου" -> "Βαλαωρίτου") and $regex cannot. The map
@@ -177,19 +259,29 @@ router.get("/", optionalAuth, async (req, res) => {
       const radiusKm = parseNumber(req.query.radiusKm);
       if (radiusKm != null) {
         return res.json(
-          stores
-            .filter((s) => s.distanceKm != null && s.distanceKm <= radiusKm)
-            .map(withLive),
+          promotedFirst(
+            stores
+              .filter((s) => s.distanceKm != null && s.distanceKm <= radiusKm)
+              .map(withLive),
+          ),
         );
       }
     }
 
     // ?live=1 is the map's "Tonight" toggle: only venues actually reporting.
     if (req.query.live === "1") {
-      return res.json(stores.map(withLive).filter((s) => s.live));
+      return res.json(promotedFirst(stores.map(withLive).filter((s) => s.live)));
     }
 
-    res.json(stores.map(withLive));
+    // ?offers=1 feeds the "Προσφορές απόψε" strip. Expired and fully claimed
+    // offers are already nulled by withLive, so this filter is enough.
+    if (req.query.offers === "1") {
+      return res.json(
+        promotedFirst(stores.map(withLive).filter((s) => s.offer)),
+      );
+    }
+
+    res.json(promotedFirst(stores.map(withLive)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -214,13 +306,23 @@ router.get("/mine", requireAuth, async (req, res) => {
         bookings: 1,
         loyalty: 1,
         live: 1,
+        offer: 1,
+        promoted: 1,
         location: 1,
         ratings: 1,
+        subscription: 1,
       })
       .sort({ name: 1 })
       .toArray();
 
-    res.json(stores.map(withLive));
+    // The venue's own list carries its billing state, so the dashboard can warn
+    // about a trial running out without a second request.
+    res.json(
+      stores.map((store) => ({
+        ...withLive(store),
+        subscription: entitlement(store),
+      })),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -546,8 +648,8 @@ router.post("/:id/save", requireAuth, async (req, res) => {
 ========================= */
 router.put("/:id/live", requireAuth, async (req, res) => {
   try {
-    const store = await ownedStore(req.params.id, req);
-    if (!store) return res.status(403).json({ message: "Not your store" });
+    const store = await billableStore(req.params.id, req, res);
+    if (!store) return undefined;
 
     const stores = getDb().collection("stores");
     const { crowd, note } = req.body;
@@ -587,6 +689,274 @@ router.put("/:id/live", requireAuth, async (req, res) => {
     );
 
     res.json({ live: withLive(updated).live });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   PUT /stores/:id/offer
+   The venue puts something on for tonight. Sending title: null clears it.
+
+   This is the answer to a dead Tuesday: a venue broadcasts a reason to come
+   out now, rather than waiting for someone to open the app on their own.
+========================= */
+router.put("/:id/offer", requireAuth, async (req, res) => {
+  try {
+    const store = await billableStore(req.params.id, req, res);
+    if (!store) return undefined;
+
+    const stores = getDb().collection("stores");
+    const { title, detail, until } = req.body;
+
+    if (title === null || title === "") {
+      await stores.updateOne({ _id: store._id }, { $unset: { offer: "" } });
+      return res.json({ offer: null });
+    }
+
+    const clean = String(title ?? "").trim();
+    if (!clean) {
+      return res.status(400).json({ message: "Γράψε τι δίνεις" });
+    }
+    if (clean.length > 80) {
+      return res.status(400).json({ message: "Πολύ μεγάλος τίτλος" });
+    }
+
+    if (!/^\d{2}:\d{2}$/.test(until ?? "")) {
+      return res.status(400).json({ message: "Μη έγκυρη ώρα λήξης" });
+    }
+
+    // Turn "01:00" into a real moment. Anything before 06:00 belongs to the
+    // small hours of the *next* calendar day, which is still tonight.
+    const [hours, minutes] = until.split(":").map(Number);
+    const expiresAt = new Date(`${currentNightKey()}T00:00:00`);
+    if (hours < 6) expiresAt.setDate(expiresAt.getDate() + 1);
+    expiresAt.setHours(hours, minutes, 0, 0);
+
+    if (expiresAt <= new Date()) {
+      return res.status(400).json({ message: "Η ώρα λήξης έχει ήδη περάσει" });
+    }
+
+    const claimLimit = parseNumber(req.body.claimLimit);
+
+    await stores.updateOne(
+      { _id: store._id },
+      {
+        $set: {
+          offer: {
+            // Each posting gets its own identity, so claims are scoped to the
+            // offer rather than the night. Replacing tonight's offer must let
+            // the same guest claim the new one.
+            id: new ObjectId(),
+            dateKey: currentNightKey(),
+            title: clean,
+            detail: detail?.trim() || null,
+            until,
+            expiresAt,
+            claimLimit: claimLimit != null ? Math.max(1, claimLimit) : null,
+            claimed: 0,
+            createdAt: new Date(),
+          },
+        },
+      },
+    );
+
+    const updated = await stores.findOne(
+      { _id: store._id },
+      { projection: { offer: 1 } },
+    );
+
+    res.json({ offer: liveOffer(updated) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   POST /stores/:id/offer/claim
+   Guest takes the offer and gets a short code to show at the bar.
+========================= */
+router.post("/:id/offer/claim", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const db = getDb();
+    const storeId = new ObjectId(id);
+
+    const store = await db
+      .collection("stores")
+      .findOne({ _id: storeId }, { projection: { offer: 1, name: 1 } });
+
+    if (!store) return res.status(404).json({ message: "Store not found" });
+
+    const offer = liveOffer(store);
+    if (!offer) {
+      return res.status(410).json({ message: "Η προσφορά δεν ισχύει πλέον" });
+    }
+
+    const existing = await db
+      .collection("offerclaims")
+      .findOne({ offer: store.offer.id, user: req.userId });
+
+    // Already taken this offer — hand back the same code, not a second one.
+    if (existing) {
+      return res.json({ code: existing.code, offer, alreadyClaimed: true });
+    }
+
+    // Short, readable, and only has to be unique within one venue for one
+    // night, so four characters is plenty.
+    const code = crypto.randomBytes(3).toString("hex").slice(0, 4).toUpperCase();
+
+    try {
+      await db.collection("offerclaims").insertOne({
+        offer: store.offer.id,
+        store: storeId,
+        user: req.userId,
+        dateKey: store.offer.dateKey,
+        code,
+        redeemed: false,
+        createdAt: new Date(),
+      });
+    } catch (err) {
+      // Two taps racing: whoever lost re-reads the winner's code.
+      if (err.code !== 11000) throw err;
+
+      const won = await db
+        .collection("offerclaims")
+        .findOne({ offer: store.offer.id, user: req.userId });
+      return res.json({ code: won.code, offer, alreadyClaimed: true });
+    }
+
+    // The counter is what retires a capped offer, so it is only ever bumped
+    // after a claim row actually landed.
+    const after = await db.collection("stores").findOneAndUpdate(
+      { _id: storeId },
+      { $inc: { "offer.claimed": 1 } },
+      { returnDocument: "after", projection: { offer: 1 } },
+    );
+
+    res.status(201).json({ code, offer: liveOffer(after), alreadyClaimed: false });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   POST /stores/:id/offer/redeem
+   The bar types the guest's code to check it and mark it used.
+========================= */
+router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
+  try {
+    const store = await ownedStore(req.params.id, req);
+    if (!store) return res.status(403).json({ message: "Not your store" });
+
+    const db = getDb();
+
+    // Accepts either the four characters typed by hand or the full QR payload
+    // the guest shows: vibely:offer:<storeId>:<CODE>. Anything from another
+    // venue's QR is rejected rather than having its code salvaged.
+    const raw = String(req.body.code ?? "").trim();
+    let code = raw.toUpperCase();
+
+    if (raw.startsWith("vibely:offer:")) {
+      const [, , qrStore, qrCode] = raw.split(":");
+      if (qrStore !== store._id.toString()) {
+        return res.status(404).json({ message: "Κωδικός άλλου μαγαζιού" });
+      }
+      code = String(qrCode ?? "").toUpperCase();
+    }
+
+    // Scoped to the offer currently on, so a code from an earlier offer the
+    // venue has since replaced cannot be walked in on.
+    const current = await db
+      .collection("stores")
+      .findOne({ _id: store._id }, { projection: { offer: 1 } });
+
+    if (!current?.offer?.id) {
+      return res.status(404).json({ message: "Δεν τρέχει προσφορά τώρα" });
+    }
+
+    const claim = await db.collection("offerclaims").findOne({
+      offer: current.offer.id,
+      code,
+    });
+
+    if (!claim) return res.status(404).json({ message: "Άκυρος κωδικός" });
+    if (claim.redeemed) {
+      return res.status(409).json({ message: "Έχει ήδη χρησιμοποιηθεί" });
+    }
+
+    await db
+      .collection("offerclaims")
+      .updateOne({ _id: claim._id }, { $set: { redeemed: true, redeemedAt: new Date() } });
+
+    const guest = await db
+      .collection("users")
+      .findOne({ _id: claim.user }, { projection: { username: 1, profileImageUrl: 1 } });
+
+    res.json({ ok: true, guest });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   PUT /stores/:id/promoted
+   Paid placement, sold by you — not something a venue can switch on for itself,
+   so this is superadmin only rather than owner-gated like everything else here.
+   Body: { days, label } or { days: 0 } to stop it.
+========================= */
+router.put("/:id/promoted", requireAuth, async (req, res) => {
+  try {
+    if (req.session.user?.type !== "superadmin") {
+      return res.status(403).json({ message: "Superadmin only" });
+    }
+
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const stores = getDb().collection("stores");
+    const days = parseNumber(req.body.days);
+
+    if (days === 0) {
+      await stores.updateOne(
+        { _id: new ObjectId(id) },
+        { $unset: { promoted: "" } },
+      );
+      return res.json({ promoted: null });
+    }
+
+    if (days == null || days < 1 || days > 365) {
+      return res.status(400).json({ message: "days must be between 1 and 365" });
+    }
+
+    const until = new Date();
+    until.setDate(until.getDate() + days);
+
+    const label = String(req.body.label ?? "").trim();
+
+    const updated = await stores.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          promoted: {
+            until,
+            label: label || "Προτεινόμενο",
+            startedAt: new Date(),
+          },
+        },
+      },
+      { returnDocument: "after", projection: { promoted: 1, name: 1 } },
+    );
+
+    if (!updated) return res.status(404).json({ message: "Store not found" });
+
+    res.json({ store: updated.name, promoted: livePromotion(updated) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

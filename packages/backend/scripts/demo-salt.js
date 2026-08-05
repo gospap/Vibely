@@ -10,6 +10,7 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const { connectDB, getDb, getClient } = require("../db");
 const { normalizeText } = require("../src/utils/text");
+const { startTrial } = require("../src/utils/trial");
 
 const OWNER = {
   email: "thomas@salt.gr",
@@ -118,6 +119,8 @@ const IMAGES = [
       },
       $setOnInsert: {
         ratings: { average: 0, count: 0 },
+        // A new venue starts its 14-day trial the moment it is created.
+        subscription: startTrial(now),
         createdAt: now,
       },
     },

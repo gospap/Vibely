@@ -10,6 +10,7 @@ const {
   currentNightKey,
   nightWindow,
 } = require("../utils/query");
+const { entitlement } = require("../utils/trial");
 
 const router = express.Router();
 
@@ -34,6 +35,16 @@ const tonightFilter = (now = new Date()) => {
       { startDate: { $lte: now }, endDate: { $gte: now } },
     ],
   };
+};
+
+// Paid placement on the host venue. Time-boxed, so an unrenewed promotion
+// lapses on its own. Always surfaced as a label — never silently reordered
+// without saying why.
+const livePromotion = (store, now = new Date()) => {
+  const promoted = store?.promoted;
+  if (!promoted?.until || new Date(promoted.until) <= now) return null;
+
+  return { label: promoted.label || "Προτεινόμενο" };
 };
 
 // The host's live status, but only while it is still about tonight — a crowd
@@ -111,6 +122,7 @@ router.get("/", optionalAuth, async (req, res) => {
         category: 1,
         live: 1,
         bookings: 1,
+        promoted: 1,
       })
       .toArray();
 
@@ -121,6 +133,10 @@ router.get("/", optionalAuth, async (req, res) => {
 
     res.json({
       items,
+      // Paid placement rides in its own labelled slot rather than being mixed
+      // into the feed. The order the user asked for stays the order they get,
+      // and the promoted ones are visibly separate instead of quietly first.
+      promoted: page === 1 ? await promotedEvents(req.userId) : [],
       page,
       limit,
       total,
@@ -338,13 +354,28 @@ router.post("/", requireAuth, async (req, res) => {
     if (hostedBy) {
       const store = await db
         .collection("stores")
-        .findOne({ _id: new ObjectId(hostedBy) }, { projection: { owner: 1 } });
+        .findOne(
+          { _id: new ObjectId(hostedBy) },
+          { projection: { owner: 1, subscription: 1 } },
+        );
 
       if (!store) return res.status(404).json({ message: "Store not found" });
 
+      const isSuperadmin = req.session.user?.type === "superadmin";
       const isOwner = store.owner?.toString() === req.userId.toString();
-      if (!isOwner && req.session.user?.type !== "superadmin") {
+
+      if (!isOwner && !isSuperadmin) {
         return res.status(403).json({ message: "Not your store" });
+      }
+
+      // Posting an event is a paid action: a lapsed venue keeps the events it
+      // already published but cannot add more.
+      const state = entitlement(store);
+      if (!state.entitled && !isSuperadmin) {
+        return res.status(402).json({
+          message: "Χρειάζεται ενεργή συνδρομή για να ανεβάσεις event",
+          subscription: state,
+        });
       }
     }
 
@@ -380,6 +411,39 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
+// Up to three upcoming events at venues currently paying for placement. Kept
+// separate from the feed so the slot can be labelled rather than passed off as
+// an organic result.
+const PROMOTED_SLOTS = 3;
+
+async function promotedEvents(userId) {
+  const db = getDb();
+
+  const promotedStores = await db
+    .collection("stores")
+    .find({ "promoted.until": { $gt: new Date() } })
+    .project({ name: 1, images: 1, ratings: 1, area: 1, location: 1, promoted: 1, bookings: 1, live: 1 })
+    .toArray();
+
+  if (!promotedStores.length) return [];
+
+  const events = await db
+    .collection("events")
+    .find({
+      hostedBy: { $in: promotedStores.map((s) => s._id) },
+      ...upcomingFilter(),
+    })
+    .sort({ startDate: 1 })
+    .limit(PROMOTED_SLOTS)
+    .toArray();
+
+  const byId = new Map(promotedStores.map((s) => [s._id.toString(), s]));
+
+  return events.map((event) =>
+    decorate(event, byId.get(event.hostedBy?.toString()), userId),
+  );
+}
+
 // Flatten the host into the `store` shape the list cards render, and answer
 // "am I going?" without a second round trip.
 function decorate(event, host, userId) {
@@ -399,6 +463,7 @@ function decorate(event, host, userId) {
           // whether the card offers a table.
           live: liveNow(host),
           bookingsEnabled: !!host.bookings?.enabled,
+          promoted: livePromotion(host),
         }
       : null,
     attendantCount: attendants.length,

@@ -22,6 +22,7 @@ import {
 
 import HomeScreen from "@/pages/HomeScreen";
 import EventsScreen from "@/pages/EventsScreen";
+import OffersScreen from "@/pages/OffersScreen";
 import CommunityScreen from "@/pages/CommunityScreen";
 import ChatScreen from "@/pages/ChatScreen";
 import UserProfileScreen from "@/pages/UserProfileScreen";
@@ -30,6 +31,8 @@ import MyBookingsScreen from "@/pages/MyBookingsScreen";
 import VenueScreen from "@/pages/VenueScreen";
 import VenueReservationsScreen from "@/pages/VenueReservationsScreen";
 import VenueAnalyticsScreen from "@/pages/VenueAnalyticsScreen";
+import WalletScreen from "@/pages/WalletScreen";
+import BillingScreen from "@/pages/BillingScreen";
 import { AuthContext } from "@/context/AuthContext";
 
 const Tab = createBottomTabNavigator();
@@ -269,6 +272,9 @@ export default function AppNavigator() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
       <Stack.Screen name="VenueAnalytics" component={VenueAnalyticsScreen} />
+      <Stack.Screen name="Offers" component={OffersScreen} />
+      <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="Billing" component={BillingScreen} />
     </Stack.Navigator>
   );
 }

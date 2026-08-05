@@ -8,7 +8,9 @@
     "seed": "node seed.js",
     "demo:tonight": "node scripts/tonight.js",
     "demo:bookings": "node scripts/demo-bookings.js",
-    "demo:salt": "node scripts/demo-salt.js"
+    "demo:salt": "node scripts/demo-salt.js",
+    "demo:offers": "node scripts/demo-offers.js",
+    "backfill:trials": "node scripts/backfill-trials.js"
   },
   "keywords": [],
   "author": "",
@@ -24,7 +26,8 @@
     "express-session": "^1.19.0",
     "express-validator": "^7.3.2",
     "mongodb": "^6.21.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "stripe": "^22.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",

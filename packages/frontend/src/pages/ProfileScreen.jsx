@@ -20,6 +20,9 @@ import {
   CalendarCheck,
   Gift,
   ChevronRight,
+  Ticket,
+  Store as StoreIcon,
+  ChartNoAxesColumn,
 } from "lucide-react-native";
 
 import { AuthContext } from "@/context/AuthContext";
@@ -55,6 +58,7 @@ const NOTIFICATION_ROWS = [
 const PRIVACY_ROWS = [
   { key: "discoverable", label: "Να με βρίσκουν στην αναζήτηση" },
   { key: "showAttendance", label: "Να φαίνεται σε ποια events πάω" },
+  { key: "showCheckIns", label: "Να φαίνεται στους φίλους πού κάνω check-in" },
 ];
 
 export default function ProfileScreen() {
@@ -65,12 +69,43 @@ export default function ProfileScreen() {
   const [myEvents, setMyEvents] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loyalty, setLoyalty] = useState([]);
+  const [venues, setVenues] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // A venue account is running a business here, not going out. Stamp cards,
+  // friends and "events I'm attending" mean nothing to it, so it gets its own
+  // numbers and its own tools rather than a guest screen with extras bolted on.
+  const isTenant = user?.type === "tenant";
+
   const load = useCallback(async () => {
     try {
+      if (isTenant) {
+        const [preferences, mine] = await Promise.all([
+          call("/users/me/preferences"),
+          call("/stores/mine"),
+        ]);
+
+        setPrefs(preferences);
+        setVenues(mine);
+
+        // One summary per venue, then summed. A tenant has a handful of bars,
+        // so this is a few small requests rather than a new endpoint.
+        const summaries = await Promise.all(
+          mine.map((venue) =>
+            call(`/reservations/store/${venue._id}/summary`).catch(() => []),
+          ),
+        );
+        setPendingCount(
+          summaries
+            .flat()
+            .reduce((sum, night) => sum + (night.pending ?? 0), 0),
+        );
+        return;
+      }
+
       const [preferences, events, mates, cards] = await Promise.all([
         call("/users/me/preferences"),
         call("/users/me/events"),
@@ -87,7 +122,7 @@ export default function ProfileScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isTenant]);
 
   useFocusEffect(
     useCallback(() => {
@@ -165,53 +200,155 @@ export default function ProfileScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <Avatar uri={avatarUri} name={user.username} size={96} />
-
-          <View style={styles.headerText}>
-            <Text style={styles.name}>{user.username || "Χρήστης"}</Text>
-            <Text style={styles.email}>{user.email}</Text>
-            {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
-          </View>
-
+        {/* ---- hero ---- */}
+        <View style={styles.hero}>
           <Pressable
-            style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.6 }]}
             onPress={() => setEditing(true)}
+            hitSlop={8}
           >
-            <Pencil size={14} color={T.text} strokeWidth={2.2} />
-            <Text style={styles.editButtonText}>Επεξεργασία προφίλ</Text>
+            <Pencil size={15} color={T.textMuted} strokeWidth={2.2} />
           </Pressable>
+
+          <Avatar uri={avatarUri} name={user.username} size={88} />
+
+          <Text style={styles.name}>{user.username || "Χρήστης"}</Text>
+          <Text style={styles.email}>{user.email}</Text>
+          {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+
+          {/* One strip with hairline dividers rather than three floating tiles.
+              A venue's numbers are its own, not a nightlife-goer's. */}
+          <View style={styles.stats}>
+            {isTenant ? (
+              <>
+                <Stat value={venues.length} label="Μαγαζιά" />
+                <View style={styles.statDivider} />
+                <Stat value={pendingCount} label="Σε αναμονή" />
+                <View style={styles.statDivider} />
+                <Stat
+                  value={venues.filter((v) => v.subscription?.entitled).length}
+                  label="Ενεργά"
+                />
+              </>
+            ) : (
+              <>
+                <Stat value={myEvents.length} label="Events" />
+                <View style={styles.statDivider} />
+                <Stat value={friends.length} label="Φίλοι" />
+                <View style={styles.statDivider} />
+                <Stat
+                  value={user.savedStores?.length ?? 0}
+                  label="Αποθηκευμένα"
+                />
+              </>
+            )}
+          </View>
         </View>
 
-        <View style={styles.cardsRow}>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>{myEvents.length}</Text>
-            <Text style={styles.cardLabel}>Events</Text>
+        {/* ---- the tools for this kind of account ---- */}
+        {isTenant ? (
+          <View style={styles.group}>
+            <LinkRow
+              Icon={StoreIcon}
+              tone={T.primary}
+              label="Το μαγαζί μου"
+              onPress={() => navigation.navigate("Venue")}
+            />
+            <View style={styles.divider} />
+            <LinkRow
+              Icon={ChartNoAxesColumn}
+              tone={T.accent}
+              label="Στατιστικά"
+              onPress={() => navigation.navigate("VenueAnalytics")}
+            />
           </View>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>{friends.length}</Text>
-            <Text style={styles.cardLabel}>Φίλοι</Text>
+        ) : (
+          <View style={styles.group}>
+            <LinkRow
+              Icon={CalendarCheck}
+              tone={T.primary}
+              label="Οι κρατήσεις μου"
+              onPress={() => navigation.navigate("MyBookings")}
+            />
+            <View style={styles.divider} />
+            <LinkRow
+              Icon={Ticket}
+              tone={T.accent}
+              label="Το πορτοφόλι μου"
+              onPress={() => navigation.navigate("Wallet")}
+            />
           </View>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>
-              {user.savedStores?.length ?? 0}
-            </Text>
-            <Text style={styles.cardLabel}>Αποθηκευμένα</Text>
-          </View>
-        </View>
+        )}
 
-        {/* ---- bookings ---- */}
-        <Pressable
-          style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
-          onPress={() => navigation.navigate("MyBookings")}
-        >
-          <CalendarCheck size={17} color={T.primary} strokeWidth={2.2} />
-          <Text style={styles.linkLabel}>Οι κρατήσεις μου</Text>
-          <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
-        </Pressable>
+        {/* ---- billing: the venue's own section, not a link to go hunting ---- */}
+        {isTenant ? (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Συνδρομή</Text>
+              <Pressable onPress={() => navigation.navigate("Billing")}>
+                <Text style={styles.sectionAction}>Διαχείριση</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.group}>
+              {venues.map((venue, index) => {
+                const sub = venue.subscription ?? {};
+                const tone = !sub.entitled
+                  ? T.danger
+                  : sub.onTrial
+                    ? T.warning
+                    : T.accent;
+
+                return (
+                  <View key={venue._id}>
+                    {index ? <View style={styles.divider} /> : null}
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.billingRow,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                      onPress={() => navigation.navigate("Billing")}
+                    >
+                      <Image
+                        source={{ uri: venue.images?.[0] }}
+                        style={styles.billingImage}
+                      />
+
+                      <View style={styles.billingText}>
+                        <Text style={styles.billingVenue} numberOfLines={1}>
+                          {venue.name}
+                        </Text>
+                        <Text style={[styles.billingState, { color: tone }]}>
+                          {sub.onTrial
+                            ? `Δοκιμή · ${sub.trialDaysLeft} ${sub.trialDaysLeft === 1 ? "μέρα" : "μέρες"} ακόμα`
+                            : sub.entitled
+                              ? "Ενεργή"
+                              : "Δεν φαίνεσαι στον χάρτη"}
+                        </Text>
+                      </View>
+
+                      <ChevronRight
+                        size={16}
+                        color={T.textFaint}
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+                );
+              })}
+
+              {!venues.length ? (
+                <Text style={styles.billingEmpty}>
+                  Ο λογαριασμός σου δεν είναι συνδεδεμένος με μαγαζί ακόμα.
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
 
         {/* ---- stamp cards ---- */}
-        {loyalty.length ? (
+        {!isTenant && loyalty.length ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Κάρτες πόντων</Text>
 
@@ -250,85 +387,90 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {/* ---- upcoming events ---- */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Τα events μου</Text>
+        {/* ---- what a guest cares about: where they are going, who with ---- */}
+        {!isTenant ? (
+          <>
+          {/* ---- upcoming events ---- */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Τα events μου</Text>
 
-          {loading ? (
-            <ActivityIndicator color={T.primary} style={styles.loader} />
-          ) : myEvents.length ? (
-            myEvents.map((event) => (
-              <Pressable
-                key={event._id}
-                style={styles.eventRow}
-                onPress={() => navigation.navigate("Events")}
-              >
-                <Image
-                  source={{ uri: event.images?.[0] }}
-                  style={styles.eventImage}
-                />
-                <View style={styles.eventText}>
-                  <Text style={styles.eventTitle} numberOfLines={1}>
-                    {event.title}
-                  </Text>
-                  <Text style={styles.eventMeta} numberOfLines={1}>
-                    {formatEventDate(event.startDate)} · {event.startHour} ·{" "}
-                    {event.store?.name}
-                  </Text>
-                </View>
-              </Pressable>
-            ))
-          ) : (
-            <View style={styles.emptyRow}>
-              <CalendarDays size={16} color={T.textFaint} strokeWidth={2} />
-              <Text style={styles.emptyText}>
-                Δεν έχεις δηλώσει συμμετοχή σε κάποιο event.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ---- friends ---- */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Φίλοι</Text>
-            <Pressable onPress={() => navigation.navigate("Community")}>
-              <Text style={styles.sectionAction}>Όλοι</Text>
-            </Pressable>
+            {loading ? (
+              <ActivityIndicator color={T.primary} style={styles.loader} />
+            ) : myEvents.length ? (
+              myEvents.map((event) => (
+                <Pressable
+                  key={event._id}
+                  style={styles.eventRow}
+                  onPress={() => navigation.navigate("Events")}
+                >
+                  <Image
+                    source={{ uri: event.images?.[0] }}
+                    style={styles.eventImage}
+                  />
+                  <View style={styles.eventText}>
+                    <Text style={styles.eventTitle} numberOfLines={1}>
+                      {event.title}
+                    </Text>
+                    <Text style={styles.eventMeta} numberOfLines={1}>
+                      {formatEventDate(event.startDate)} · {event.startHour} ·{" "}
+                      {event.store?.name}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            ) : (
+              <View style={styles.emptyRow}>
+                <CalendarDays size={16} color={T.textFaint} strokeWidth={2} />
+                <Text style={styles.emptyText}>
+                  Δεν έχεις δηλώσει συμμετοχή σε κάποιο event.
+                </Text>
+              </View>
+            )}
           </View>
 
-          {friends.length ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.friendsRow}
-            >
-              {friends.map((friend) => (
-                <Pressable
-                  key={friend._id}
-                  style={styles.friend}
-                  onPress={() =>
-                    navigation.navigate("UserProfile", { userId: friend._id })
-                  }
-                >
-                  <Avatar
-                    uri={friend.profileImageUrl}
-                    name={friend.username}
-                    size={56}
-                  />
-                  <Text style={styles.friendName} numberOfLines={1}>
-                    {friend.username}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyRow}>
-              <Users size={16} color={T.textFaint} strokeWidth={2} />
-              <Text style={styles.emptyText}>Δεν έχεις φίλους ακόμα.</Text>
+          {/* ---- friends ---- */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Φίλοι</Text>
+              <Pressable onPress={() => navigation.navigate("Community")}>
+                <Text style={styles.sectionAction}>Όλοι</Text>
+              </Pressable>
             </View>
-          )}
-        </View>
+
+            {friends.length ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.friendsRow}
+              >
+                {friends.map((friend) => (
+                  <Pressable
+                    key={friend._id}
+                    style={styles.friend}
+                    onPress={() =>
+                      navigation.navigate("UserProfile", { userId: friend._id })
+                    }
+                  >
+                    <Avatar
+                      uri={friend.profileImageUrl}
+                      name={friend.username}
+                      size={56}
+                    />
+                    <Text style={styles.friendName} numberOfLines={1}>
+                      {friend.username}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyRow}>
+                <Users size={16} color={T.textFaint} strokeWidth={2} />
+                <Text style={styles.emptyText}>Δεν έχεις φίλους ακόμα.</Text>
+              </View>
+            )}
+          </View>
+          </>
+        ) : null}
 
         {/* ---- preferences ---- */}
         {prefs ? (
@@ -336,33 +478,43 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ειδοποιήσεις</Text>
 
-              {NOTIFICATION_ROWS.map(({ key, label }) => (
-                <View key={key} style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>{label}</Text>
-                  <Switch
-                    value={!!prefs.notifications?.[key]}
-                    onValueChange={(value) => setNotification(key, value)}
-                    trackColor={{ false: T.elevated, true: T.primary }}
-                    thumbColor="#fff"
-                  />
-                </View>
-              ))}
+              <View style={styles.group}>
+                {NOTIFICATION_ROWS.map(({ key, label }, index) => (
+                  <View key={key}>
+                    {index ? <View style={styles.divider} /> : null}
+                    <View style={styles.toggleRow}>
+                      <Text style={styles.toggleLabel}>{label}</Text>
+                      <Switch
+                        value={!!prefs.notifications?.[key]}
+                        onValueChange={(value) => setNotification(key, value)}
+                        trackColor={{ false: T.elevated, true: T.primary }}
+                        thumbColor="#fff"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Απόρρητο</Text>
 
-              {PRIVACY_ROWS.map(({ key, label }) => (
-                <View key={key} style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>{label}</Text>
-                  <Switch
-                    value={!!prefs.privacy?.[key]}
-                    onValueChange={(value) => setPrivacy(key, value)}
-                    trackColor={{ false: T.elevated, true: T.primary }}
-                    thumbColor="#fff"
-                  />
-                </View>
-              ))}
+              <View style={styles.group}>
+                {PRIVACY_ROWS.map(({ key, label }, index) => (
+                  <View key={key}>
+                    {index ? <View style={styles.divider} /> : null}
+                    <View style={styles.toggleRow}>
+                      <Text style={styles.toggleLabel}>{label}</Text>
+                      <Switch
+                        value={!!prefs.privacy?.[key]}
+                        onValueChange={(value) => setPrivacy(key, value)}
+                        trackColor={{ false: T.elevated, true: T.primary }}
+                        thumbColor="#fff"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           </>
         ) : null}
@@ -371,19 +523,34 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Λογαριασμός</Text>
 
-          <Detail label="Όνομα χρήστη" value={user.username} />
-          <Detail label="Email" value={user.email} />
-          <Detail label="Τύπος" value={user.type || "user"} />
-          {user.gender ? <Detail label="Φύλο" value={user.gender} /> : null}
-          {user.dateOfBirth ? (
-            <Detail
-              label="Ημερομηνία γέννησης"
-              value={formatFullDate(user.dateOfBirth)}
-            />
-          ) : null}
-          {user.createdAt ? (
-            <Detail label="Μέλος από" value={formatFullDate(user.createdAt)} />
-          ) : null}
+          <View style={styles.group}>
+            <Detail label="Όνομα χρήστη" value={user.username} />
+            <View style={styles.divider} />
+            <Detail label="Email" value={user.email} />
+            <View style={styles.divider} />
+            <Detail label="Τύπος" value={user.type || "user"} />
+            {user.gender ? (
+              <>
+                <View style={styles.divider} />
+                <Detail label="Φύλο" value={user.gender} />
+              </>
+            ) : null}
+            {user.dateOfBirth ? (
+              <>
+                <View style={styles.divider} />
+                <Detail
+                  label="Ημερομηνία γέννησης"
+                  value={formatFullDate(user.dateOfBirth)}
+                />
+              </>
+            ) : null}
+            {user.createdAt ? (
+              <>
+                <View style={styles.divider} />
+                <Detail label="Μέλος από" value={formatFullDate(user.createdAt)} />
+              </>
+            ) : null}
+          </View>
         </View>
 
         <Pressable
@@ -416,5 +583,29 @@ function Detail({ label, value }) {
         {value}
       </Text>
     </View>
+  );
+}
+
+function Stat({ value, label }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function LinkRow({ Icon, tone, label, onPress }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+      onPress={onPress}
+    >
+      <View style={[styles.linkIcon, { backgroundColor: `${tone}1F` }]}>
+        <Icon size={16} color={tone} strokeWidth={2.3} />
+      </View>
+      <Text style={styles.linkLabel}>{label}</Text>
+      <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
+    </Pressable>
   );
 }

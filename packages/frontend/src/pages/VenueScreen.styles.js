@@ -17,6 +17,32 @@ export default StyleSheet.create({
     marginTop: 80,
   },
 
+  /* ---- billing banner ---- */
+  billing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    padding: 13,
+    borderRadius: T.radius.md,
+    borderWidth: 1,
+  },
+
+  billingLapsed: {
+    backgroundColor: "rgba(248,113,113,0.12)",
+    borderColor: "rgba(248,113,113,0.35)",
+  },
+
+  billingTrial: {
+    backgroundColor: "rgba(251,191,36,0.12)",
+    borderColor: "rgba(251,191,36,0.35)",
+  },
+
+  billingText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -31,7 +57,7 @@ export default StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  analytics: {
+  headerIcon: {
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -40,31 +66,70 @@ export default StyleSheet.create({
     justifyContent: "center",
   },
 
-  /* ---- store picker ---- */
-  chips: {
-    gap: 8,
-    paddingRight: 8,
-  },
-
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: T.radius.pill,
+  /* ---- which venue you are managing ---- */
+  storeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 78,
+    borderRadius: T.radius.md,
     backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+    overflow: "hidden",
   },
 
-  chipActive: {
-    backgroundColor: T.primarySoft,
+  storeImage: {
+    width: 78,
+    height: 78,
+    backgroundColor: T.elevated,
   },
 
-  chipText: {
+  storeBody: {
+    flex: 1,
+    gap: 2,
+    paddingHorizontal: 12,
+  },
+
+  storeName: {
+    color: T.text,
+    fontSize: 15.5,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
+  storeMeta: {
+    color: T.textFaint,
+    fontSize: 11.5,
+  },
+
+  storePlan: {
     color: T.textMuted,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
   },
 
-  chipTextActive: {
-    color: T.text,
+  switcher: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingRight: 8,
+  },
+
+  switchArrow: {
+    width: 28,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: T.radius.sm,
+    backgroundColor: T.surfaceAlt,
+  },
+
+  switchCount: {
+    color: T.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    minWidth: 26,
+    textAlign: "center",
   },
 
   /* ---- cards ---- */
@@ -110,6 +175,77 @@ export default StyleSheet.create({
 
   crowdText: {
     color: T.textMuted,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+
+  /* ---- tonight's offer ---- */
+  offerLive: {
+    gap: 4,
+    padding: 12,
+    borderRadius: T.radius.sm,
+    backgroundColor: "rgba(74,222,128,0.12)",
+  },
+
+  offerLiveTitle: {
+    color: T.text,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  offerLiveMeta: {
+    color: T.accent,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  offerRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+
+  offerInput: {
+    flex: 1,
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+    backgroundColor: T.surfaceAlt,
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+
+  offerInputFull: {
+    color: T.text,
+    fontSize: 14,
+    backgroundColor: T.surfaceAlt,
+    borderRadius: T.radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+
+  offerButton: {
+    justifyContent: "center",
+    paddingHorizontal: 18,
+    borderRadius: T.radius.sm,
+  },
+
+  offerSend: {
+    backgroundColor: T.primary,
+  },
+
+  offerCheck: {
+    backgroundColor: T.elevated,
+  },
+
+  offerButtonText: {
+    color: T.text,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+
+  offerClear: {
+    color: T.danger,
     fontSize: 12.5,
     fontWeight: "700",
   },
