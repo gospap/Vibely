@@ -12,7 +12,6 @@ const {
   todayKey,
   daysBetweenKeys,
   currentNightKey,
-  nightWindow,
 } = require("../utils/query");
 
 const router = express.Router();
@@ -46,6 +45,20 @@ const withLive = (store) => {
         }
       : null,
     offer: liveOffer(store),
+    promoted: livePromotion(store),
+  };
+};
+
+// Paid placement. Time-boxed so a promotion that was not renewed drops off on
+// its own rather than running forever, and only ever surfaced as a labelled
+// badge — a promoted venue is marked as such, never disguised as a normal one.
+const livePromotion = (store, now = new Date()) => {
+  const promoted = store?.promoted;
+  if (!promoted?.until || new Date(promoted.until) <= now) return null;
+
+  return {
+    label: promoted.label || "Προτεινόμενο",
+    until: promoted.until,
   };
 };
 
@@ -71,6 +84,14 @@ const liveOffer = (store, now = new Date()) => {
     claimed: offer.claimed ?? 0,
     left: offer.claimLimit != null ? offer.claimLimit - (offer.claimed ?? 0) : null,
   };
+};
+
+// Promoted venues rise to the top of whatever list they are in, but the order
+// within each group is left alone — so distance sorting still holds for the
+// paid ones and for everyone else.
+const promotedFirst = (stores) => {
+  const rank = (s) => (s.promoted ? 0 : 1);
+  return [...stores].sort((a, b) => rank(a) - rank(b));
 };
 
 // A tenant may only act on a store they own; superadmin passes for support.
@@ -203,25 +224,29 @@ router.get("/", optionalAuth, async (req, res) => {
       const radiusKm = parseNumber(req.query.radiusKm);
       if (radiusKm != null) {
         return res.json(
-          stores
-            .filter((s) => s.distanceKm != null && s.distanceKm <= radiusKm)
-            .map(withLive),
+          promotedFirst(
+            stores
+              .filter((s) => s.distanceKm != null && s.distanceKm <= radiusKm)
+              .map(withLive),
+          ),
         );
       }
     }
 
     // ?live=1 is the map's "Tonight" toggle: only venues actually reporting.
     if (req.query.live === "1") {
-      return res.json(stores.map(withLive).filter((s) => s.live));
+      return res.json(promotedFirst(stores.map(withLive).filter((s) => s.live)));
     }
 
     // ?offers=1 feeds the "Προσφορές απόψε" strip. Expired and fully claimed
     // offers are already nulled by withLive, so this filter is enough.
     if (req.query.offers === "1") {
-      return res.json(stores.map(withLive).filter((s) => s.offer));
+      return res.json(
+        promotedFirst(stores.map(withLive).filter((s) => s.offer)),
+      );
     }
 
-    res.json(stores.map(withLive));
+    res.json(promotedFirst(stores.map(withLive)));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -253,136 +278,6 @@ router.get("/mine", requireAuth, async (req, res) => {
       .toArray();
 
     res.json(stores.map(withLive));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/* =========================
-   GET /stores/night-flow   ?dateKey=
-   How the city moves through one night: cafés early, bars at eleven, clubs at
-   two. Purely aggregate — hour totals per venue and per category, never a
-   person. Declared above /:id so "night-flow" is not read as a store id.
-========================= */
-router.get("/night-flow", optionalAuth, async (req, res) => {
-  try {
-    const db = getDb();
-
-    const dateKey = isDateKey(req.query.dateKey)
-      ? req.query.dateKey
-      : currentNightKey();
-
-    // 18:00 through 05:00 — the hours a night actually occupies.
-    const HOURS = [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5];
-    const slotOf = (hhmm) => {
-      if (!/^\d{1,2}:\d{2}$/.test(hhmm ?? "")) return -1;
-      return HOURS.indexOf(Number(hhmm.split(":")[0]));
-    };
-
-    const { from, to } = nightWindow(dateKey);
-
-    const [stores, reservations, events, checkIns] = await Promise.all([
-      db
-        .collection("stores")
-        .find({})
-        .project({ name: 1, category: 1, location: 1, images: 1 })
-        .toArray(),
-
-      db
-        .collection("reservations")
-        .find({ dateKey, status: { $in: HOLDS_A_SEAT } })
-        .project({ store: 1, arrivalTime: 1, partySize: 1 })
-        .toArray(),
-
-      db
-        .collection("events")
-        .find({ startDate: { $gte: from, $lt: to } })
-        .project({ hostedBy: 1, startHour: 1, attendants: 1 })
-        .toArray(),
-
-      db
-        .collection("checkins")
-        .find({ dateKey })
-        .project({ store: 1, createdAt: 1 })
-        .toArray(),
-    ]);
-
-    const perStore = new Map(
-      stores.map((s) => [s._id.toString(), Array(HOURS.length).fill(0)]),
-    );
-
-    const add = (storeId, slot, weight) => {
-      if (slot < 0 || !storeId) return;
-      const row = perStore.get(storeId.toString());
-      if (row) row[slot] += weight;
-    };
-
-    // A booked table is the strongest statement of where someone will be.
-    for (const r of reservations) {
-      add(r.store, slotOf(r.arrivalTime), r.partySize ?? 1);
-    }
-
-    // An event pulls its crowd at its start hour.
-    for (const e of events) {
-      add(e.hostedBy, slotOf(e.startHour), (e.attendants?.length ?? 0) + 1);
-    }
-
-    // A check-in is someone actually standing there, timed by when it happened.
-    for (const c of checkIns) {
-      const hour = new Date(c.createdAt).getHours();
-      add(c.store, HOURS.indexOf(hour), 2);
-    }
-
-    const byCategory = {};
-    const byStore = [];
-
-    for (const store of stores) {
-      const perHour = perStore.get(store._id.toString());
-      const total = perHour.reduce((a, b) => a + b, 0);
-
-      const category = store.category || "bar";
-      if (!byCategory[category]) byCategory[category] = Array(HOURS.length).fill(0);
-      for (let i = 0; i < perHour.length; i += 1) byCategory[category][i] += perHour[i];
-
-      // Silent venues are dropped: they would just be dots that never light up.
-      if (total > 0) {
-        byStore.push({
-          _id: store._id,
-          name: store.name,
-          category,
-          location: store.location,
-          image: store.images?.[0],
-          perHour,
-          total,
-        });
-      }
-    }
-
-    byStore.sort((a, b) => b.total - a.total);
-
-    // Which kind of venue owns each hour — the line that makes the animation
-    // readable ("στις 02:00 τα clubs").
-    const leadPerHour = HOURS.map((_, i) => {
-      let lead = null;
-      let best = 0;
-      for (const [category, row] of Object.entries(byCategory)) {
-        if (row[i] > best) {
-          best = row[i];
-          lead = category;
-        }
-      }
-      return lead;
-    });
-
-    res.json({
-      dateKey,
-      hours: HOURS.map((h) => `${String(h).padStart(2, "0")}:00`),
-      byCategory,
-      leadPerHour,
-      byStore,
-      total: byStore.reduce((sum, s) => sum + s.total, 0),
-    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -915,7 +810,20 @@ router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
     if (!store) return res.status(403).json({ message: "Not your store" });
 
     const db = getDb();
-    const code = String(req.body.code ?? "").trim().toUpperCase();
+
+    // Accepts either the four characters typed by hand or the full QR payload
+    // the guest shows: vibely:offer:<storeId>:<CODE>. Anything from another
+    // venue's QR is rejected rather than having its code salvaged.
+    const raw = String(req.body.code ?? "").trim();
+    let code = raw.toUpperCase();
+
+    if (raw.startsWith("vibely:offer:")) {
+      const [, , qrStore, qrCode] = raw.split(":");
+      if (qrStore !== store._id.toString()) {
+        return res.status(404).json({ message: "Κωδικός άλλου μαγαζιού" });
+      }
+      code = String(qrCode ?? "").toUpperCase();
+    }
 
     // Scoped to the offer currently on, so a code from an earlier offer the
     // venue has since replaced cannot be walked in on.
@@ -946,6 +854,64 @@ router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
       .findOne({ _id: claim.user }, { projection: { username: 1, profileImageUrl: 1 } });
 
     res.json({ ok: true, guest });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   PUT /stores/:id/promoted
+   Paid placement, sold by you — not something a venue can switch on for itself,
+   so this is superadmin only rather than owner-gated like everything else here.
+   Body: { days, label } or { days: 0 } to stop it.
+========================= */
+router.put("/:id/promoted", requireAuth, async (req, res) => {
+  try {
+    if (req.session.user?.type !== "superadmin") {
+      return res.status(403).json({ message: "Superadmin only" });
+    }
+
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) return badId(res);
+
+    const stores = getDb().collection("stores");
+    const days = parseNumber(req.body.days);
+
+    if (days === 0) {
+      await stores.updateOne(
+        { _id: new ObjectId(id) },
+        { $unset: { promoted: "" } },
+      );
+      return res.json({ promoted: null });
+    }
+
+    if (days == null || days < 1 || days > 365) {
+      return res.status(400).json({ message: "days must be between 1 and 365" });
+    }
+
+    const until = new Date();
+    until.setDate(until.getDate() + days);
+
+    const label = String(req.body.label ?? "").trim();
+
+    const updated = await stores.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          promoted: {
+            until,
+            label: label || "Προτεινόμενο",
+            startedAt: new Date(),
+          },
+        },
+      },
+      { returnDocument: "after", projection: { promoted: 1, name: 1 } },
+    );
+
+    if (!updated) return res.status(404).json({ message: "Store not found" });
+
+    res.json({ store: updated.name, promoted: livePromotion(updated) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

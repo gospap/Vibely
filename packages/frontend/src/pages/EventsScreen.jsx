@@ -10,7 +10,7 @@ import {
   RefreshControl,
   ScrollView,
 } from "react-native";
-import { CalendarX, Users, Tag } from "lucide-react-native";
+import { CalendarX, Users, Tag, Sparkles } from "lucide-react-native";
 
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
@@ -45,6 +45,7 @@ export default function EventsScreen() {
   const [selectedId, setSelectedId] = useState(null);
   const [offers, setOffers] = useState([]);
   const [offerStore, setOfferStore] = useState(null);
+  const [promoted, setPromoted] = useState([]);
 
   // Guards against a stale response from an older filter overwriting the list.
   const requestId = useRef(0);
@@ -101,6 +102,7 @@ export default function EventsScreen() {
       if (!fresh) return;
 
       setEvents(data.items);
+      setPromoted(data.promoted ?? []);
       setHasMore(data.hasMore);
       setTotal(data.total);
       setPage(1);
@@ -273,6 +275,47 @@ export default function EventsScreen() {
               <Text style={styles.offerMeta}>
                 Έως {store.offer.until}
                 {store.offer.left != null ? ` · ${store.offer.left} ακόμα` : ""}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {/* Paid placement in its own labelled row. The feed below keeps the order
+          the filters asked for. */}
+      {promoted.length ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.promoted}
+          style={styles.promotedRow}
+        >
+          {promoted.map((event) => (
+            <Pressable
+              key={event._id}
+              style={styles.promotedCard}
+              onPress={() => setSelectedId(event._id)}
+            >
+              <Image
+                source={{ uri: event.images?.[0] }}
+                style={styles.promotedImage}
+              />
+
+              <View style={styles.promotedTag}>
+                <Sparkles size={9} color="#1a1400" strokeWidth={2.8} />
+                <Text style={styles.promotedTagText} numberOfLines={1}>
+                  {event.store?.promoted?.label ?? "Προτεινόμενο"}
+                </Text>
+              </View>
+
+              <Text style={styles.promotedTitle} numberOfLines={2}>
+                {event.title}
+              </Text>
+              <Text style={styles.promotedVenue} numberOfLines={1}>
+                {event.store?.name}
+              </Text>
+              <Text style={styles.promotedMeta}>
+                {formatEventDate(event.startDate)} · {event.startHour}
               </Text>
             </Pressable>
           ))}

@@ -88,6 +88,27 @@ export default StyleSheet.create({
     color: T.danger,
   },
 
+  /* ---- promoted (paid placement) ---- */
+  promotedTag: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginBottom: -4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: T.radius.pill,
+    backgroundColor: T.warning,
+  },
+
+  promotedTagText: {
+    color: "#1a1400",
+    fontSize: 10.5,
+    fontWeight: "900",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+  },
+
   /* ---- live tonight ---- */
   liveTag: {
     flexDirection: "row",

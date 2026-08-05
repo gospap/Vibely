@@ -461,6 +461,82 @@ router.get("/me/friends/tonight", requireAuth, async (req, res) => {
 });
 
 /* =========================
+   GET /users/me/wallet
+   Every code I am holding: the offers I claimed and the venues where my stamp
+   card is full. What the guest shows at the door to be handed the actual drink.
+========================= */
+router.get("/me/wallet", requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+
+    const claims = await db
+      .collection("offerclaims")
+      .find({ user: req.userId })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
+
+    if (!claims.length) return res.json([]);
+
+    const stores = await db
+      .collection("stores")
+      .find({ _id: { $in: [...new Set(claims.map((c) => c.store))] } })
+      .project({ name: 1, images: 1, area: 1, offer: 1 })
+      .toArray();
+
+    const byId = new Map(stores.map((s) => [s._id.toString(), s]));
+    const now = new Date();
+
+    res.json(
+      claims
+        .map((claim) => {
+          const store = byId.get(claim.store.toString());
+          if (!store) return null;
+
+          // The title is read off the venue's current offer only while the
+          // claim still belongs to it. Once the venue moves on, the code stays
+          // valid to look at but is clearly spent.
+          const sameOffer =
+            store.offer?.id && claim.offer
+              ? store.offer.id.toString() === claim.offer.toString()
+              : false;
+
+          const expired = sameOffer
+            ? new Date(store.offer.expiresAt) <= now
+            : true;
+
+          return {
+            _id: claim._id,
+            code: claim.code,
+            // What the door scans. Namespaced so a code from one venue cannot
+            // be read as another's.
+            qr: `vibely:offer:${claim.store}:${claim.code}`,
+            redeemed: !!claim.redeemed,
+            redeemedAt: claim.redeemedAt ?? null,
+            expired,
+            usable: !claim.redeemed && !expired,
+            claimedAt: claim.createdAt,
+            title: sameOffer ? store.offer.title : "Προσφορά που έληξε",
+            until: sameOffer ? store.offer.until : null,
+            store: {
+              _id: store._id,
+              name: store.name,
+              image: store.images?.[0],
+              area: store.area,
+            },
+          };
+        })
+        .filter(Boolean)
+        // Usable first, then the history.
+        .sort((a, b) => Number(b.usable) - Number(a.usable)),
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
    PATCH /users/me
    Profile edit. Whitelisted so a client cannot promote itself to superadmin.
 ========================= */

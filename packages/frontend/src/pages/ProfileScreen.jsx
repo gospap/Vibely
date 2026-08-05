@@ -20,6 +20,7 @@ import {
   CalendarCheck,
   Gift,
   ChevronRight,
+  Ticket,
 } from "lucide-react-native";
 
 import { AuthContext } from "@/context/AuthContext";
@@ -208,6 +209,15 @@ export default function ProfileScreen() {
         >
           <CalendarCheck size={17} color={T.primary} strokeWidth={2.2} />
           <Text style={styles.linkLabel}>Οι κρατήσεις μου</Text>
+          <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
+          onPress={() => navigation.navigate("Wallet")}
+        >
+          <Ticket size={17} color={T.accent} strokeWidth={2.2} />
+          <Text style={styles.linkLabel}>Το πορτοφόλι μου</Text>
           <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
         </Pressable>
 

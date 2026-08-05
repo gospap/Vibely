@@ -50,27 +50,6 @@ export default StyleSheet.create({
 
   hidden: { display: "none" },
 
-  flowButton: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 8,
-    marginLeft: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: T.radius.pill,
-    backgroundColor: T.surface,
-    borderWidth: 1,
-    borderColor: T.borderStrong,
-  },
-
-  flowText: {
-    color: T.text,
-    fontSize: 12.5,
-    fontWeight: "700",
-  },
-
   /* ---- upcoming turn ---- */
   maneuverCard: {
     position: "absolute",

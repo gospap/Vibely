@@ -23,6 +23,7 @@ import {
   Radio,
   Tag,
   ChevronRight,
+  Sparkles,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -239,6 +240,15 @@ export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate })
               </View>
 
               <View style={styles.body}>
+                {store.promoted ? (
+                  <View style={styles.promotedTag}>
+                    <Sparkles size={11} color="#1a1400" strokeWidth={2.8} />
+                    <Text style={styles.promotedTagText}>
+                      {store.promoted.label}
+                    </Text>
+                  </View>
+                ) : null}
+
                 <View style={styles.titleRow}>
                   <Text style={styles.title}>{store.name}</Text>
 
