@@ -28,6 +28,18 @@ export default StyleSheet.create({
     height: 46,
   },
 
+  filterPanel: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 22,
+    backgroundColor: "rgba(13, 13, 15, 0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+
   chips: {
     paddingHorizontal: 16,
     gap: 8,

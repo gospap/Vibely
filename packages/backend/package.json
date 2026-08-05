@@ -9,6 +9,7 @@
     "demo:tonight": "node scripts/tonight.js",
     "demo:bookings": "node scripts/demo-bookings.js",
     "demo:salt": "node scripts/demo-salt.js",
+    "demo:offers": "node scripts/demo-offers.js",
     "backfill:trials": "node scripts/backfill-trials.js"
   },
   "keywords": [],

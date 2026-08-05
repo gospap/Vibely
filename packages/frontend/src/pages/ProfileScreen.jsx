@@ -167,59 +167,51 @@ export default function ProfileScreen() {
           />
         }
       >
-        <View style={styles.header}>
-          <Avatar uri={avatarUri} name={user.username} size={96} />
-
-          <View style={styles.headerText}>
-            <Text style={styles.name}>{user.username || "Χρήστης"}</Text>
-            <Text style={styles.email}>{user.email}</Text>
-            {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
-          </View>
-
+        {/* ---- hero ---- */}
+        <View style={styles.hero}>
           <Pressable
-            style={({ pressed }) => [styles.editButton, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [styles.editIcon, pressed && { opacity: 0.6 }]}
             onPress={() => setEditing(true)}
+            hitSlop={8}
           >
-            <Pencil size={14} color={T.text} strokeWidth={2.2} />
-            <Text style={styles.editButtonText}>Επεξεργασία προφίλ</Text>
+            <Pencil size={15} color={T.textMuted} strokeWidth={2.2} />
           </Pressable>
+
+          <Avatar uri={avatarUri} name={user.username} size={88} />
+
+          <Text style={styles.name}>{user.username || "Χρήστης"}</Text>
+          <Text style={styles.email}>{user.email}</Text>
+          {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+
+          {/* One strip with hairline dividers rather than three floating tiles */}
+          <View style={styles.stats}>
+            <Stat value={myEvents.length} label="Events" />
+            <View style={styles.statDivider} />
+            <Stat value={friends.length} label="Φίλοι" />
+            <View style={styles.statDivider} />
+            <Stat
+              value={user.savedStores?.length ?? 0}
+              label="Αποθηκευμένα"
+            />
+          </View>
         </View>
 
-        <View style={styles.cardsRow}>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>{myEvents.length}</Text>
-            <Text style={styles.cardLabel}>Events</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>{friends.length}</Text>
-            <Text style={styles.cardLabel}>Φίλοι</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardValue}>
-              {user.savedStores?.length ?? 0}
-            </Text>
-            <Text style={styles.cardLabel}>Αποθηκευμένα</Text>
-          </View>
+        {/* ---- what I'm holding ---- */}
+        <View style={styles.group}>
+          <LinkRow
+            Icon={CalendarCheck}
+            tone={T.primary}
+            label="Οι κρατήσεις μου"
+            onPress={() => navigation.navigate("MyBookings")}
+          />
+          <View style={styles.divider} />
+          <LinkRow
+            Icon={Ticket}
+            tone={T.accent}
+            label="Το πορτοφόλι μου"
+            onPress={() => navigation.navigate("Wallet")}
+          />
         </View>
-
-        {/* ---- bookings ---- */}
-        <Pressable
-          style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
-          onPress={() => navigation.navigate("MyBookings")}
-        >
-          <CalendarCheck size={17} color={T.primary} strokeWidth={2.2} />
-          <Text style={styles.linkLabel}>Οι κρατήσεις μου</Text>
-          <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
-          onPress={() => navigation.navigate("Wallet")}
-        >
-          <Ticket size={17} color={T.accent} strokeWidth={2.2} />
-          <Text style={styles.linkLabel}>Το πορτοφόλι μου</Text>
-          <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
-        </Pressable>
 
         {/* ---- stamp cards ---- */}
         {loyalty.length ? (
@@ -347,33 +339,43 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Ειδοποιήσεις</Text>
 
-              {NOTIFICATION_ROWS.map(({ key, label }) => (
-                <View key={key} style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>{label}</Text>
-                  <Switch
-                    value={!!prefs.notifications?.[key]}
-                    onValueChange={(value) => setNotification(key, value)}
-                    trackColor={{ false: T.elevated, true: T.primary }}
-                    thumbColor="#fff"
-                  />
-                </View>
-              ))}
+              <View style={styles.group}>
+                {NOTIFICATION_ROWS.map(({ key, label }, index) => (
+                  <View key={key}>
+                    {index ? <View style={styles.divider} /> : null}
+                    <View style={styles.toggleRow}>
+                      <Text style={styles.toggleLabel}>{label}</Text>
+                      <Switch
+                        value={!!prefs.notifications?.[key]}
+                        onValueChange={(value) => setNotification(key, value)}
+                        trackColor={{ false: T.elevated, true: T.primary }}
+                        thumbColor="#fff"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
 
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Απόρρητο</Text>
 
-              {PRIVACY_ROWS.map(({ key, label }) => (
-                <View key={key} style={styles.toggleRow}>
-                  <Text style={styles.toggleLabel}>{label}</Text>
-                  <Switch
-                    value={!!prefs.privacy?.[key]}
-                    onValueChange={(value) => setPrivacy(key, value)}
-                    trackColor={{ false: T.elevated, true: T.primary }}
-                    thumbColor="#fff"
-                  />
-                </View>
-              ))}
+              <View style={styles.group}>
+                {PRIVACY_ROWS.map(({ key, label }, index) => (
+                  <View key={key}>
+                    {index ? <View style={styles.divider} /> : null}
+                    <View style={styles.toggleRow}>
+                      <Text style={styles.toggleLabel}>{label}</Text>
+                      <Switch
+                        value={!!prefs.privacy?.[key]}
+                        onValueChange={(value) => setPrivacy(key, value)}
+                        trackColor={{ false: T.elevated, true: T.primary }}
+                        thumbColor="#fff"
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           </>
         ) : null}
@@ -382,19 +384,34 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Λογαριασμός</Text>
 
-          <Detail label="Όνομα χρήστη" value={user.username} />
-          <Detail label="Email" value={user.email} />
-          <Detail label="Τύπος" value={user.type || "user"} />
-          {user.gender ? <Detail label="Φύλο" value={user.gender} /> : null}
-          {user.dateOfBirth ? (
-            <Detail
-              label="Ημερομηνία γέννησης"
-              value={formatFullDate(user.dateOfBirth)}
-            />
-          ) : null}
-          {user.createdAt ? (
-            <Detail label="Μέλος από" value={formatFullDate(user.createdAt)} />
-          ) : null}
+          <View style={styles.group}>
+            <Detail label="Όνομα χρήστη" value={user.username} />
+            <View style={styles.divider} />
+            <Detail label="Email" value={user.email} />
+            <View style={styles.divider} />
+            <Detail label="Τύπος" value={user.type || "user"} />
+            {user.gender ? (
+              <>
+                <View style={styles.divider} />
+                <Detail label="Φύλο" value={user.gender} />
+              </>
+            ) : null}
+            {user.dateOfBirth ? (
+              <>
+                <View style={styles.divider} />
+                <Detail
+                  label="Ημερομηνία γέννησης"
+                  value={formatFullDate(user.dateOfBirth)}
+                />
+              </>
+            ) : null}
+            {user.createdAt ? (
+              <>
+                <View style={styles.divider} />
+                <Detail label="Μέλος από" value={formatFullDate(user.createdAt)} />
+              </>
+            ) : null}
+          </View>
         </View>
 
         <Pressable
@@ -427,5 +444,29 @@ function Detail({ label, value }) {
         {value}
       </Text>
     </View>
+  );
+}
+
+function Stat({ value, label }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function LinkRow({ Icon, tone, label, onPress }) {
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.6 }]}
+      onPress={onPress}
+    >
+      <View style={[styles.linkIcon, { backgroundColor: `${tone}1F` }]}>
+        <Icon size={16} color={tone} strokeWidth={2.3} />
+      </View>
+      <Text style={styles.linkLabel}>{label}</Text>
+      <ChevronRight size={17} color={T.textFaint} strokeWidth={2.2} />
+    </Pressable>
   );
 }

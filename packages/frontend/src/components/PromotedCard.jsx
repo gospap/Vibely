@@ -11,7 +11,9 @@ import { T } from "@/styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-const HEIGHT = 104;
+// Matches the 78px feed row plus its border, so the banner reads as the same
+// family of object rather than a different component.
+const HEIGHT = 86;
 // Where the diagonal crosses the middle of the card. The edge leans from here,
 // so the image reads as roughly the left 60%.
 const SPLIT = 0.6;
@@ -102,8 +104,7 @@ const styles = StyleSheet.create({
   card: {
     width: SCREEN_WIDTH,
     height: HEIGHT,
-    marginLeft: -16,
-    marginBottom: 14,
+    marginBottom: 10,
     backgroundColor: T.surface,
     overflow: "hidden",
     borderTopWidth: 1,
@@ -148,14 +149,16 @@ const styles = StyleSheet.create({
   left: {
     position: "absolute",
     left: 16,
-    bottom: 14,
-    width: SCREEN_WIDTH * SPLIT - 40,
-    gap: 7,
+    top: 0,
+    bottom: 0,
+    width: SCREEN_WIDTH * SPLIT - 44,
+    justifyContent: "center",
+    gap: 6,
   },
 
   title: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
     letterSpacing: -0.2,
   },

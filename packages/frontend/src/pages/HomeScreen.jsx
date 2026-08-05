@@ -101,6 +101,7 @@ export default function HomeScreen() {
   const [expandedResults, setExpandedResults] = useState(false);
   const searchInput = useRef(null);
   const [category, setCategory] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Results are only up while the box has focus and there is something typed —
   // an empty query would otherwise dump every pin on the map into a list.
@@ -544,6 +545,12 @@ export default function HomeScreen() {
           onChangeText={setQuery}
           onFocus={() => setSearchFocused(true)}
           placeholder="Ψάξε μαγαζί ή περιοχή"
+          onFilterPress={() => {
+            dismissSearch();
+            setFiltersOpen((open) => !open);
+          }}
+          filtersOpen={filtersOpen}
+          filterCount={category === "all" ? 0 : 1}
           style={styles.search}
         />
 
@@ -616,21 +623,20 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chips}
-          keyboardShouldPersistTaps="handled"
-        >
-          {CATEGORIES.map(({ key, label }) => (
-            <Chip
-              key={key}
-              label={label}
-              active={category === key}
-              onPress={() => setCategory(key)}
-            />
-          ))}
-        </ScrollView>
+        {/* Behind the bar's filter icon: on a map, a permanent row of chips
+            covers the city it is meant to help you search. */}
+        {filtersOpen && !searching ? (
+          <View style={styles.filterPanel}>
+            {CATEGORIES.map(({ key, label }) => (
+              <Chip
+                key={key}
+                label={label}
+                active={category === key}
+                onPress={() => setCategory(key)}
+              />
+            ))}
+          </View>
+        ) : null}
 
       </View>
 

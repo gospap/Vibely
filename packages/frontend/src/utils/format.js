@@ -27,6 +27,17 @@ export function formatEventDate(value) {
   return `${DAYS_SHORT[date.getDay()]} ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`;
 }
 
+// Lowercase and strip accents, so "βαλαωριτου" matches "Βαλαωρίτου". Mirrors
+// normalizeText on the server, for the lists that are filtered on the device
+// instead of round-tripping a request per keystroke.
+export function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 // Nights travel to the API as "YYYY-MM-DD" rather than timestamps — see the
 // Reservation model for why.
 export function toDateKey(value) {

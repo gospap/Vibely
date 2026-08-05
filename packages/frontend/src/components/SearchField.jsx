@@ -1,6 +1,6 @@
-import { View, TextInput, Pressable, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
-import { Search, X } from "lucide-react-native";
+import { Search, X, SlidersHorizontal } from "lucide-react-native";
 import { T } from "@/styles/theme";
 
 // Same glass treatment as the tab bar: a dark blur, a hairline highlight along
@@ -14,6 +14,11 @@ export default function SearchField({
   onFocus,
   onBlur,
   inputRef,
+  // Filters live behind this button rather than as a row of chips under the
+  // bar — on a map screen that row was covering the city.
+  onFilterPress,
+  filterCount = 0,
+  filtersOpen = false,
   style,
 }) {
   return (
@@ -40,6 +45,25 @@ export default function SearchField({
       {value ? (
         <Pressable onPress={() => onChangeText("")} hitSlop={10}>
           <X size={16} color="rgba(255,255,255,0.6)" strokeWidth={2.4} />
+        </Pressable>
+      ) : null}
+
+      {onFilterPress ? (
+        <Pressable
+          onPress={onFilterPress}
+          hitSlop={8}
+          style={[styles.filter, filtersOpen && styles.filterOpen]}
+        >
+          <SlidersHorizontal
+            size={16}
+            color={filtersOpen || filterCount ? T.primary : "rgba(255,255,255,0.6)"}
+            strokeWidth={2.3}
+          />
+          {/* A count rather than a dot: the user should know how many filters
+              are on without opening the panel to find out. */}
+          {filterCount ? (
+            <Text style={styles.filterCount}>{filterCount}</Text>
+          ) : null}
         </Pressable>
       ) : null}
     </BlurView>
@@ -72,5 +96,23 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     padding: 0,
+  },
+  filter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 2,
+    marginRight: -4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  filterOpen: {
+    backgroundColor: "rgba(79,124,255,0.18)",
+  },
+  filterCount: {
+    color: T.primary,
+    fontSize: 11.5,
+    fontWeight: "800",
   },
 });

@@ -26,117 +26,119 @@ export default StyleSheet.create({
     gap: 24,
   },
 
-  /* ---- header ---- */
-  header: {
+  /* ---- hero ---- */
+  hero: {
     alignItems: "center",
-    gap: 12,
+    gap: 6,
+    paddingTop: 26,
+    paddingBottom: 0,
+    borderRadius: T.radius.lg,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+    overflow: "hidden",
   },
 
-  headerText: {
+  editIcon: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    backgroundColor: T.surfaceAlt,
   },
 
   name: {
     color: T.text,
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: "800",
+    letterSpacing: -0.4,
+    marginTop: 6,
   },
 
   email: {
     color: T.textFaint,
-    fontSize: 13,
+    fontSize: 12.5,
   },
 
   bio: {
     color: T.textMuted,
-    fontSize: 14,
+    fontSize: 13.5,
     textAlign: "center",
-    lineHeight: 20,
-    marginTop: 4,
-    paddingHorizontal: 12,
+    lineHeight: 19,
+    marginTop: 6,
+    paddingHorizontal: 24,
   },
 
-  editButton: {
+  /* ---- stats strip inside the hero ---- */
+  stats: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: T.radius.pill,
+    alignSelf: "stretch",
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: T.border,
     backgroundColor: T.surfaceAlt,
-    borderWidth: 1,
-    borderColor: T.border,
   },
 
-  editButtonText: {
-    color: T.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-
-  /* ---- stat cards ---- */
-  cardsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-
-  card: {
+  stat: {
     flex: 1,
     alignItems: "center",
-    gap: 3,
-    paddingVertical: 16,
+    gap: 2,
+    paddingVertical: 13,
+  },
+
+  statDivider: {
+    width: 1,
+    marginVertical: 10,
+    backgroundColor: T.border,
+  },
+
+  statValue: {
+    color: T.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+
+  statLabel: {
+    color: T.textFaint,
+    fontSize: 10.5,
+    fontWeight: "600",
+  },
+
+  /* ---- grouped rows ---- */
+  group: {
     borderRadius: T.radius.md,
     backgroundColor: T.surface,
     borderWidth: 1,
     borderColor: T.border,
+    overflow: "hidden",
   },
 
-  cardValue: {
-    color: T.text,
-    fontSize: 22,
-    fontWeight: "800",
-  },
-
-  cardLabel: {
-    color: T.textFaint,
-    fontSize: 11.5,
-    fontWeight: "600",
-  },
-
-  /* ---- sections ---- */
-  section: {
-    gap: 10,
-  },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  sectionTitle: {
-    color: T.textMuted,
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-
-  sectionAction: {
-    color: T.primary,
-    fontSize: 13,
-    fontWeight: "700",
+  divider: {
+    height: 1,
+    marginLeft: 14,
+    backgroundColor: T.border,
   },
 
   /* ---- bookings link ---- */
   linkRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    padding: 14,
-    borderRadius: T.radius.md,
-    backgroundColor: T.surface,
+    gap: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+
+  linkIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   linkLabel: {
@@ -257,23 +259,21 @@ export default StyleSheet.create({
   },
 
   /* ---- toggles ---- */
+  // Inside a group now, so the divider between rows is drawn by the parent
+  // rather than each row carrying its own border.
   toggleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    paddingVertical: 10,
+    paddingVertical: 7,
     paddingHorizontal: 14,
-    borderRadius: T.radius.sm,
-    backgroundColor: T.surface,
-    borderWidth: 1,
-    borderColor: T.border,
   },
 
   toggleLabel: {
     flex: 1,
     color: T.text,
-    fontSize: 14,
+    fontSize: 13.5,
   },
 
   /* ---- account details ---- */
@@ -282,9 +282,8 @@ export default StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 16,
+    paddingHorizontal: 14,
     paddingVertical: 11,
-    borderBottomWidth: 1,
-    borderBottomColor: T.border,
   },
 
   detailLabel: {
