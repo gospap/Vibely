@@ -24,6 +24,7 @@ import {
   ChartNoAxesColumn,
   Tag,
   TriangleAlert,
+  CreditCard,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -272,8 +273,18 @@ export default function VenueScreen() {
         <View style={styles.titleRow}>
           <Text style={styles.title}>{store?.name}</Text>
 
+          {/* Always reachable. The banners below only appear when the trial is
+              nearly out, and billing has to be findable before then. */}
           <Pressable
-            style={styles.analytics}
+            style={styles.headerIcon}
+            onPress={() => navigation.navigate("Billing")}
+            hitSlop={8}
+          >
+            <CreditCard size={18} color={T.textMuted} strokeWidth={2.3} />
+          </Pressable>
+
+          <Pressable
+            style={styles.headerIcon}
             onPress={() => navigation.navigate("VenueAnalytics")}
             hitSlop={8}
           >

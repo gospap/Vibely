@@ -57,7 +57,7 @@ export default StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  analytics: {
+  headerIcon: {
     width: 38,
     height: 38,
     borderRadius: 19,

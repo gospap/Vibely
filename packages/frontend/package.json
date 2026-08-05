@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "node scripts/start.js",
+    "tunnel": "node scripts/tunnel.js",
     "android": "node scripts/start.js --android",
     "ios": "node scripts/start.js --ios",
     "web": "expo start --web",

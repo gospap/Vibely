@@ -21,6 +21,7 @@ import {
   Gift,
   ChevronRight,
   Ticket,
+  CreditCard,
 } from "lucide-react-native";
 
 import { AuthContext } from "@/context/AuthContext";
@@ -211,6 +212,20 @@ export default function ProfileScreen() {
             label="Το πορτοφόλι μου"
             onPress={() => navigation.navigate("Wallet")}
           />
+
+          {/* Venue accounts pay from here. Guests never see it — there is
+              nothing for them to subscribe to. */}
+          {user.type === "tenant" ? (
+            <>
+              <View style={styles.divider} />
+              <LinkRow
+                Icon={CreditCard}
+                tone={T.warning}
+                label="Συνδρομή & χρεώσεις"
+                onPress={() => navigation.navigate("Billing")}
+              />
+            </>
+          ) : null}
         </View>
 
         {/* ---- stamp cards ---- */}
