@@ -17,6 +17,32 @@ export default StyleSheet.create({
     marginTop: 80,
   },
 
+  /* ---- billing banner ---- */
+  billing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+    padding: 13,
+    borderRadius: T.radius.md,
+    borderWidth: 1,
+  },
+
+  billingLapsed: {
+    backgroundColor: "rgba(248,113,113,0.12)",
+    borderColor: "rgba(248,113,113,0.35)",
+  },
+
+  billingTrial: {
+    backgroundColor: "rgba(251,191,36,0.12)",
+    borderColor: "rgba(251,191,36,0.35)",
+  },
+
+  billingText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
   titleRow: {
     flexDirection: "row",
     alignItems: "center",

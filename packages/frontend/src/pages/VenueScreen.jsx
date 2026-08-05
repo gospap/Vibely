@@ -23,6 +23,7 @@ import {
   KeyRound,
   ChartNoAxesColumn,
   Tag,
+  TriangleAlert,
 } from "lucide-react-native";
 
 import Avatar from "@/components/Avatar";
@@ -240,6 +241,34 @@ export default function VenueScreen() {
           />
         }
       >
+        {/* A trial that lapses quietly costs the venue its map pin, so it is
+            called out above everything else once it is close. */}
+        {store?.subscription && !store.subscription.entitled ? (
+          <Pressable
+            style={[styles.billing, styles.billingLapsed]}
+            onPress={() => navigation.navigate("Billing")}
+          >
+            <TriangleAlert size={15} color={T.danger} strokeWidth={2.4} />
+            <Text style={[styles.billingText, { color: T.danger }]}>
+              Δεν φαίνεσαι στον χάρτη — ενεργοποίησε συνδρομή
+            </Text>
+            <ChevronRight size={16} color={T.danger} strokeWidth={2.2} />
+          </Pressable>
+        ) : store?.subscription?.onTrial &&
+          store.subscription.trialDaysLeft <= 5 ? (
+          <Pressable
+            style={[styles.billing, styles.billingTrial]}
+            onPress={() => navigation.navigate("Billing")}
+          >
+            <Clock size={15} color={T.warning} strokeWidth={2.4} />
+            <Text style={[styles.billingText, { color: T.warning }]}>
+              Η δοκιμή λήγει σε {store.subscription.trialDaysLeft}{" "}
+              {store.subscription.trialDaysLeft === 1 ? "μέρα" : "μέρες"}
+            </Text>
+            <ChevronRight size={16} color={T.warning} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
+
         <View style={styles.titleRow}>
           <Text style={styles.title}>{store?.name}</Text>
 
