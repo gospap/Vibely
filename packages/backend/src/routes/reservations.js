@@ -9,6 +9,7 @@ const {
   todayKey,
   daysBetweenKeys,
 } = require("../utils/query");
+const { entitlement } = require("../utils/trial");
 
 const router = express.Router();
 
@@ -153,10 +154,19 @@ router.post("/", requireAuth, async (req, res) => {
       .collection("stores")
       .findOne(
         { _id: new ObjectId(storeId) },
-        { projection: { bookings: 1, name: 1 } },
+        { projection: { bookings: 1, name: 1, subscription: 1 } },
       );
 
     if (!store) return res.status(404).json({ message: "Store not found" });
+
+    // A lapsed venue stops taking *new* bookings. The ones it already
+    // confirmed are untouched — guests turning up to a table they were
+    // promised is not something a billing problem gets to break.
+    if (!entitlement(store).entitled) {
+      return res
+        .status(403)
+        .json({ message: "Το μαγαζί δεν δέχεται κρατήσεις αυτή τη στιγμή" });
+    }
 
     if (!store.bookings?.enabled) {
       return res

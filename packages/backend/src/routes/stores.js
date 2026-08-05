@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { ObjectId } = require("mongodb");
 const { getDb } = require("../../db");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
+const { entitlement } = require("../utils/trial");
 const {
   normalizeText,
   haversineKm,
@@ -104,13 +105,44 @@ async function ownedStore(storeId, req) {
     .collection("stores")
     .findOne(
       { _id: new ObjectId(storeId) },
-      { projection: { owner: 1, name: 1, bookings: 1, loyalty: 1 } },
+      {
+        projection: {
+          owner: 1,
+          name: 1,
+          bookings: 1,
+          loyalty: 1,
+          subscription: 1,
+        },
+      },
     );
 
   if (!store) return null;
 
   const isOwner = store.owner?.toString() === req.userId.toString();
   if (!isOwner && req.session.user?.type !== "superadmin") return null;
+
+  return store;
+}
+
+// Same as ownedStore, but also refuses when the venue has stopped paying.
+// Wraps the write actions a lapsed venue must not perform — reading its own
+// sheet stays open, so it can still see the bookings it already owes people.
+async function billableStore(storeId, req, res) {
+  const store = await ownedStore(storeId, req);
+
+  if (!store) {
+    res.status(403).json({ message: "Not your store" });
+    return null;
+  }
+
+  const state = entitlement(store);
+  if (!state.entitled && req.session.user?.type !== "superadmin") {
+    res.status(402).json({
+      message: "Η συνδρομή σου έχει λήξει",
+      subscription: state,
+    });
+    return null;
+  }
 
   return store;
 }
@@ -191,7 +223,10 @@ router.get("/", optionalAuth, async (req, res) => {
       filter.category = category;
     }
 
-    let stores = await getDb().collection("stores").find(filter).toArray();
+    // A venue that is not paying (and out of trial) drops off the map. Its
+    // detail page still resolves, so a guest holding a booking can reach it.
+    let stores = (await getDb().collection("stores").find(filter).toArray())
+      .filter((store) => entitlement(store).entitled);
 
     // Matching happens here rather than in mongo because a Greek search has to
     // ignore accents ("βαλαωριτου" -> "Βαλαωρίτου") and $regex cannot. The map
@@ -271,13 +306,23 @@ router.get("/mine", requireAuth, async (req, res) => {
         bookings: 1,
         loyalty: 1,
         live: 1,
+        offer: 1,
+        promoted: 1,
         location: 1,
         ratings: 1,
+        subscription: 1,
       })
       .sort({ name: 1 })
       .toArray();
 
-    res.json(stores.map(withLive));
+    // The venue's own list carries its billing state, so the dashboard can warn
+    // about a trial running out without a second request.
+    res.json(
+      stores.map((store) => ({
+        ...withLive(store),
+        subscription: entitlement(store),
+      })),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -603,8 +648,8 @@ router.post("/:id/save", requireAuth, async (req, res) => {
 ========================= */
 router.put("/:id/live", requireAuth, async (req, res) => {
   try {
-    const store = await ownedStore(req.params.id, req);
-    if (!store) return res.status(403).json({ message: "Not your store" });
+    const store = await billableStore(req.params.id, req, res);
+    if (!store) return undefined;
 
     const stores = getDb().collection("stores");
     const { crowd, note } = req.body;
@@ -659,8 +704,8 @@ router.put("/:id/live", requireAuth, async (req, res) => {
 ========================= */
 router.put("/:id/offer", requireAuth, async (req, res) => {
   try {
-    const store = await ownedStore(req.params.id, req);
-    if (!store) return res.status(403).json({ message: "Not your store" });
+    const store = await billableStore(req.params.id, req, res);
+    if (!store) return undefined;
 
     const stores = getDb().collection("stores");
     const { title, detail, until } = req.body;

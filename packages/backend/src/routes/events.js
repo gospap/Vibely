@@ -10,6 +10,7 @@ const {
   currentNightKey,
   nightWindow,
 } = require("../utils/query");
+const { entitlement } = require("../utils/trial");
 
 const router = express.Router();
 
@@ -353,13 +354,28 @@ router.post("/", requireAuth, async (req, res) => {
     if (hostedBy) {
       const store = await db
         .collection("stores")
-        .findOne({ _id: new ObjectId(hostedBy) }, { projection: { owner: 1 } });
+        .findOne(
+          { _id: new ObjectId(hostedBy) },
+          { projection: { owner: 1, subscription: 1 } },
+        );
 
       if (!store) return res.status(404).json({ message: "Store not found" });
 
+      const isSuperadmin = req.session.user?.type === "superadmin";
       const isOwner = store.owner?.toString() === req.userId.toString();
-      if (!isOwner && req.session.user?.type !== "superadmin") {
+
+      if (!isOwner && !isSuperadmin) {
         return res.status(403).json({ message: "Not your store" });
+      }
+
+      // Posting an event is a paid action: a lapsed venue keeps the events it
+      // already published but cannot add more.
+      const state = entitlement(store);
+      if (!state.entitled && !isSuperadmin) {
+        return res.status(402).json({
+          message: "Χρειάζεται ενεργή συνδρομή για να ανεβάσεις event",
+          subscription: state,
+        });
       }
     }
 

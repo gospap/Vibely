@@ -13,6 +13,14 @@ const { initRealtime } = require("./src/realtime");
 
 const app = express();
 
+// Before express.json(): Stripe signs the raw bytes, so anything that parses
+// the body first makes verification fail.
+app.use(
+  "/stripe/webhook",
+  express.raw({ type: "application/json" }),
+  require("./src/routes/stripeWebhook"),
+);
+
 // Photos arrive as base64 data URIs, so the default 100kb body cap is too small.
 app.use(express.json({ limit: "8mb" }));
 app.use(express.urlencoded({ extended: true, limit: "8mb" }));
@@ -62,6 +70,7 @@ const start = async () => {
   app.use("/users", require("./src/routes/users"));
   app.use("/messages", require("./src/routes/messages"));
   app.use("/reservations", require("./src/routes/reservations"));
+  app.use("/billing", require("./src/routes/billing"));
   app.use("/uploads", uploadsRouter);
 
   // Serve what the upload route just wrote.
