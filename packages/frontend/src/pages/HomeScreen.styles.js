@@ -33,20 +33,71 @@ export default StyleSheet.create({
     gap: 8,
   },
 
-  resultCount: {
-    alignSelf: "flex-start",
-    marginLeft: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: T.radius.pill,
-    backgroundColor: "rgba(23,23,25,0.94)",
+  /* ---- search results ---- */
+  results: {
+    marginTop: 8,
+    borderRadius: 22,
+    overflow: "hidden",
+    backgroundColor: "rgba(13, 13, 15, 0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
   },
 
-  resultCountText: {
-    color: T.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
+  result: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
+
+  resultImage: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: T.elevated,
+  },
+
+  resultText: {
+    flex: 1,
+  },
+
+  resultName: {
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  resultMeta: {
+    color: T.textFaint,
+    fontSize: 11.5,
+  },
+
+  resultsLoader: {
+    paddingVertical: 14,
+  },
+
+  resultEmpty: {
+    color: T.textFaint,
+    fontSize: 13,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+
+  more: {
+    alignItems: "center",
+    paddingVertical: 9,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+  },
+
+  moreText: {
+    color: T.primary,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+
+
 
   hidden: { display: "none" },
 

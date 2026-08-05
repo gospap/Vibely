@@ -11,6 +11,9 @@ export default function SearchField({
   onChangeText,
   placeholder = "Αναζήτηση",
   autoFocus = false,
+  onFocus,
+  onBlur,
+  inputRef,
   style,
 }) {
   return (
@@ -20,6 +23,7 @@ export default function SearchField({
       <Search size={17} color="rgba(255,255,255,0.6)" strokeWidth={2} />
 
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -29,6 +33,8 @@ export default function SearchField({
         autoCorrect={false}
         returnKeyType="search"
         clearButtonMode="never"
+        onFocus={onFocus}
+        onBlur={onBlur}
       />
 
       {value ? (

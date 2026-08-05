@@ -2,8 +2,13 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
+  Pressable,
+  Keyboard,
+  StyleSheet,
+  Dimensions,
   ActivityIndicator,
   Alert,
 } from "react-native";
@@ -13,6 +18,7 @@ import * as Speech from "expo-speech";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import {
   ArrowUp,
+  Crown,
   ArrowUpLeft,
   ArrowUpRight,
   Clock3,
@@ -46,6 +52,12 @@ import {
 } from "@/utils/navigation";
 
 // Where the map opens when location permission is refused, so the screen is
+// Search results start at 15% of the screen — enough for a couple of rows
+// without burying the map — and open to just under half when asked for.
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.15;
+const EXPANDED_HEIGHT = SCREEN_HEIGHT * 0.45;
+
 // never blank: the middle of Thessaloniki, zoomed out enough to show the city.
 const FALLBACK_REGION = {
   latitude: 40.6401,
@@ -85,7 +97,21 @@ export default function HomeScreen() {
   const [selectedStore, setSelectedStore] = useState(null);
 
   const [query, setQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [expandedResults, setExpandedResults] = useState(false);
+  const searchInput = useRef(null);
   const [category, setCategory] = useState("all");
+
+  // Results are only up while the box has focus and there is something typed —
+  // an empty query would otherwise dump every pin on the map into a list.
+  const searching = searchFocused && query.trim().length > 0;
+
+  const dismissSearch = () => {
+    searchInput.current?.blur();
+    Keyboard.dismiss();
+    setSearchFocused(false);
+    setExpandedResults(false);
+  };
 
   const [routeCoords, setRouteCoords] = useState([]);
   const [eta, setEta] = useState(null);
@@ -498,16 +524,97 @@ export default function HomeScreen() {
       {/* ---- search + filters ---- */}
       {/* Hidden rather than unmounted while driving, so the query and the
           selected chip are still there when navigation ends. */}
+      {/* Tapping the map dismisses the results. Behind the overlay so the
+          search box and the list itself stay tappable. */}
+      {searching ? (
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={dismissSearch}
+          accessible={false}
+        />
+      ) : null}
+
       <View
         style={[styles.searchOverlay, navigating && styles.hidden]}
         pointerEvents={navigating ? "none" : "box-none"}
       >
         <SearchField
+          inputRef={searchInput}
           value={query}
           onChangeText={setQuery}
+          onFocus={() => setSearchFocused(true)}
           placeholder="Ψάξε μαγαζί ή περιοχή"
           style={styles.search}
         />
+
+        {searching ? (
+          <View
+            style={[
+              styles.results,
+              { maxHeight: expandedResults ? EXPANDED_HEIGHT : COLLAPSED_HEIGHT },
+            ]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {loadingStores ? (
+                <ActivityIndicator
+                  color={T.textMuted}
+                  style={styles.resultsLoader}
+                />
+              ) : null}
+
+              {stores.map((store) => (
+                <Pressable
+                  key={store._id}
+                  style={styles.result}
+                  onPress={() => {
+                    dismissSearch();
+                    setSelectedStore(store);
+                  }}
+                >
+                  <Image
+                    source={{ uri: store.images?.[0] }}
+                    style={styles.resultImage}
+                  />
+
+                  <View style={styles.resultText}>
+                    <Text style={styles.resultName} numberOfLines={1}>
+                      {store.name}
+                    </Text>
+                    <Text style={styles.resultMeta} numberOfLines={1}>
+                      {store.area}
+                      {store.distanceKm != null
+                        ? ` · ${formatDistance(store.distanceKm)}`
+                        : ""}
+                    </Text>
+                  </View>
+
+                  {store.promoted ? (
+                    <Crown size={13} color="#fbbf24" fill="#fbbf24" />
+                  ) : null}
+                </Pressable>
+              ))}
+
+              {!loadingStores && stores.length === 0 ? (
+                <Text style={styles.resultEmpty}>Κανένα αποτέλεσμα.</Text>
+              ) : null}
+            </ScrollView>
+
+            {/* Only worth offering when the list is actually cut off. */}
+            {!expandedResults && stores.length > 2 ? (
+              <Pressable
+                style={styles.more}
+                onPress={() => setExpandedResults(true)}
+              >
+                <Text style={styles.moreText}>
+                  Δες περισσότερα ({stores.length})
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
 
         <ScrollView
           horizontal
@@ -525,14 +632,6 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        {!loadingStores && query.trim() ? (
-          <View style={styles.resultCount}>
-            <Text style={styles.resultCountText}>
-              {stores.length}{" "}
-              {stores.length === 1 ? "αποτέλεσμα" : "αποτελέσματα"}
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       {!followUser && hasLocation ? (
