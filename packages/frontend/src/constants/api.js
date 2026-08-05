@@ -1,10 +1,11 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 
-// Set by scripts/tunnel.js. When the phone reaches the dev server through a
-// Cloudflare tunnel there is no LAN address to derive anything from, so the
-// API URL has to be handed in rather than guessed.
-const TUNNELLED_API = process.env.EXPO_PUBLIC_API_URL;
+// Set explicitly for anything that is not "my laptop on this WiFi" — a release
+// build pointing at the deployed API, or a device that cannot reach the LAN.
+// Everything below is dev-machine guesswork and has nothing to fall back on in
+// production, so an explicit value always wins.
+const EXPLICIT_API = process.env.EXPO_PUBLIC_API_URL;
 
 // Take the dev machine's address from the Metro bundler URI instead of hardcoding
 // it, so the app follows whatever network Expo is serving on (WiFi, hotspot,
@@ -16,6 +17,6 @@ const devHost = Constants.expoConfig?.hostUri?.split(":")[0];
 const fallbackHost = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
 export const API_URL =
-  TUNNELLED_API || `http://${devHost ?? fallbackHost}:3000`;
+  EXPLICIT_API || `http://${devHost ?? fallbackHost}:3000`;
 
 export const API_BASE_URL = `${API_URL}/api`;

@@ -22,6 +22,8 @@ import {
   ChevronRight,
   Ticket,
   CreditCard,
+  Store as StoreIcon,
+  ChartNoAxesColumn,
 } from "lucide-react-native";
 
 import { AuthContext } from "@/context/AuthContext";
@@ -68,12 +70,43 @@ export default function ProfileScreen() {
   const [myEvents, setMyEvents] = useState([]);
   const [friends, setFriends] = useState([]);
   const [loyalty, setLoyalty] = useState([]);
+  const [venues, setVenues] = useState([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // A venue account is running a business here, not going out. Stamp cards,
+  // friends and "events I'm attending" mean nothing to it, so it gets its own
+  // numbers and its own tools rather than a guest screen with extras bolted on.
+  const isTenant = user?.type === "tenant";
+
   const load = useCallback(async () => {
     try {
+      if (isTenant) {
+        const [preferences, mine] = await Promise.all([
+          call("/users/me/preferences"),
+          call("/stores/mine"),
+        ]);
+
+        setPrefs(preferences);
+        setVenues(mine);
+
+        // One summary per venue, then summed. A tenant has a handful of bars,
+        // so this is a few small requests rather than a new endpoint.
+        const summaries = await Promise.all(
+          mine.map((venue) =>
+            call(`/reservations/store/${venue._id}/summary`).catch(() => []),
+          ),
+        );
+        setPendingCount(
+          summaries
+            .flat()
+            .reduce((sum, night) => sum + (night.pending ?? 0), 0),
+        );
+        return;
+      }
+
       const [preferences, events, mates, cards] = await Promise.all([
         call("/users/me/preferences"),
         call("/users/me/events"),
@@ -90,7 +123,7 @@ export default function ProfileScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isTenant]);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,52 +217,79 @@ export default function ProfileScreen() {
           <Text style={styles.email}>{user.email}</Text>
           {user.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
 
-          {/* One strip with hairline dividers rather than three floating tiles */}
+          {/* One strip with hairline dividers rather than three floating tiles.
+              A venue's numbers are its own, not a nightlife-goer's. */}
           <View style={styles.stats}>
-            <Stat value={myEvents.length} label="Events" />
-            <View style={styles.statDivider} />
-            <Stat value={friends.length} label="Φίλοι" />
-            <View style={styles.statDivider} />
-            <Stat
-              value={user.savedStores?.length ?? 0}
-              label="Αποθηκευμένα"
-            />
+            {isTenant ? (
+              <>
+                <Stat value={venues.length} label="Μαγαζιά" />
+                <View style={styles.statDivider} />
+                <Stat value={pendingCount} label="Σε αναμονή" />
+                <View style={styles.statDivider} />
+                <Stat
+                  value={venues.filter((v) => v.subscription?.entitled).length}
+                  label="Ενεργά"
+                />
+              </>
+            ) : (
+              <>
+                <Stat value={myEvents.length} label="Events" />
+                <View style={styles.statDivider} />
+                <Stat value={friends.length} label="Φίλοι" />
+                <View style={styles.statDivider} />
+                <Stat
+                  value={user.savedStores?.length ?? 0}
+                  label="Αποθηκευμένα"
+                />
+              </>
+            )}
           </View>
         </View>
 
-        {/* ---- what I'm holding ---- */}
-        <View style={styles.group}>
-          <LinkRow
-            Icon={CalendarCheck}
-            tone={T.primary}
-            label="Οι κρατήσεις μου"
-            onPress={() => navigation.navigate("MyBookings")}
-          />
-          <View style={styles.divider} />
-          <LinkRow
-            Icon={Ticket}
-            tone={T.accent}
-            label="Το πορτοφόλι μου"
-            onPress={() => navigation.navigate("Wallet")}
-          />
-
-          {/* Venue accounts pay from here. Guests never see it — there is
-              nothing for them to subscribe to. */}
-          {user.type === "tenant" ? (
-            <>
-              <View style={styles.divider} />
-              <LinkRow
-                Icon={CreditCard}
-                tone={T.warning}
-                label="Συνδρομή & χρεώσεις"
-                onPress={() => navigation.navigate("Billing")}
-              />
-            </>
-          ) : null}
-        </View>
+        {/* ---- the tools for this kind of account ---- */}
+        {isTenant ? (
+          <View style={styles.group}>
+            <LinkRow
+              Icon={StoreIcon}
+              tone={T.primary}
+              label="Το μαγαζί μου"
+              onPress={() => navigation.navigate("Venue")}
+            />
+            <View style={styles.divider} />
+            <LinkRow
+              Icon={ChartNoAxesColumn}
+              tone={T.accent}
+              label="Στατιστικά"
+              onPress={() => navigation.navigate("VenueAnalytics")}
+            />
+            <View style={styles.divider} />
+            <LinkRow
+              Icon={CreditCard}
+              tone={T.warning}
+              label="Συνδρομή & χρεώσεις"
+              onPress={() => navigation.navigate("Billing")}
+            />
+          </View>
+        ) : (
+          <View style={styles.group}>
+            <LinkRow
+              Icon={CalendarCheck}
+              tone={T.primary}
+              label="Οι κρατήσεις μου"
+              onPress={() => navigation.navigate("MyBookings")}
+            />
+            <View style={styles.divider} />
+            <LinkRow
+              Icon={Ticket}
+              tone={T.accent}
+              label="Το πορτοφόλι μου"
+              onPress={() => navigation.navigate("Wallet")}
+            />
+          </View>
+        )}
 
         {/* ---- stamp cards ---- */}
-        {loyalty.length ? (
+        {!isTenant && loyalty.length ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Κάρτες πόντων</Text>
 
@@ -268,85 +328,90 @@ export default function ProfileScreen() {
           </View>
         ) : null}
 
-        {/* ---- upcoming events ---- */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Τα events μου</Text>
+        {/* ---- what a guest cares about: where they are going, who with ---- */}
+        {!isTenant ? (
+          <>
+          {/* ---- upcoming events ---- */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Τα events μου</Text>
 
-          {loading ? (
-            <ActivityIndicator color={T.primary} style={styles.loader} />
-          ) : myEvents.length ? (
-            myEvents.map((event) => (
-              <Pressable
-                key={event._id}
-                style={styles.eventRow}
-                onPress={() => navigation.navigate("Events")}
-              >
-                <Image
-                  source={{ uri: event.images?.[0] }}
-                  style={styles.eventImage}
-                />
-                <View style={styles.eventText}>
-                  <Text style={styles.eventTitle} numberOfLines={1}>
-                    {event.title}
-                  </Text>
-                  <Text style={styles.eventMeta} numberOfLines={1}>
-                    {formatEventDate(event.startDate)} · {event.startHour} ·{" "}
-                    {event.store?.name}
-                  </Text>
-                </View>
-              </Pressable>
-            ))
-          ) : (
-            <View style={styles.emptyRow}>
-              <CalendarDays size={16} color={T.textFaint} strokeWidth={2} />
-              <Text style={styles.emptyText}>
-                Δεν έχεις δηλώσει συμμετοχή σε κάποιο event.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ---- friends ---- */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Φίλοι</Text>
-            <Pressable onPress={() => navigation.navigate("Community")}>
-              <Text style={styles.sectionAction}>Όλοι</Text>
-            </Pressable>
+            {loading ? (
+              <ActivityIndicator color={T.primary} style={styles.loader} />
+            ) : myEvents.length ? (
+              myEvents.map((event) => (
+                <Pressable
+                  key={event._id}
+                  style={styles.eventRow}
+                  onPress={() => navigation.navigate("Events")}
+                >
+                  <Image
+                    source={{ uri: event.images?.[0] }}
+                    style={styles.eventImage}
+                  />
+                  <View style={styles.eventText}>
+                    <Text style={styles.eventTitle} numberOfLines={1}>
+                      {event.title}
+                    </Text>
+                    <Text style={styles.eventMeta} numberOfLines={1}>
+                      {formatEventDate(event.startDate)} · {event.startHour} ·{" "}
+                      {event.store?.name}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))
+            ) : (
+              <View style={styles.emptyRow}>
+                <CalendarDays size={16} color={T.textFaint} strokeWidth={2} />
+                <Text style={styles.emptyText}>
+                  Δεν έχεις δηλώσει συμμετοχή σε κάποιο event.
+                </Text>
+              </View>
+            )}
           </View>
 
-          {friends.length ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.friendsRow}
-            >
-              {friends.map((friend) => (
-                <Pressable
-                  key={friend._id}
-                  style={styles.friend}
-                  onPress={() =>
-                    navigation.navigate("UserProfile", { userId: friend._id })
-                  }
-                >
-                  <Avatar
-                    uri={friend.profileImageUrl}
-                    name={friend.username}
-                    size={56}
-                  />
-                  <Text style={styles.friendName} numberOfLines={1}>
-                    {friend.username}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyRow}>
-              <Users size={16} color={T.textFaint} strokeWidth={2} />
-              <Text style={styles.emptyText}>Δεν έχεις φίλους ακόμα.</Text>
+          {/* ---- friends ---- */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Φίλοι</Text>
+              <Pressable onPress={() => navigation.navigate("Community")}>
+                <Text style={styles.sectionAction}>Όλοι</Text>
+              </Pressable>
             </View>
-          )}
-        </View>
+
+            {friends.length ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.friendsRow}
+              >
+                {friends.map((friend) => (
+                  <Pressable
+                    key={friend._id}
+                    style={styles.friend}
+                    onPress={() =>
+                      navigation.navigate("UserProfile", { userId: friend._id })
+                    }
+                  >
+                    <Avatar
+                      uri={friend.profileImageUrl}
+                      name={friend.username}
+                      size={56}
+                    />
+                    <Text style={styles.friendName} numberOfLines={1}>
+                      {friend.username}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.emptyRow}>
+                <Users size={16} color={T.textFaint} strokeWidth={2} />
+                <Text style={styles.emptyText}>Δεν έχεις φίλους ακόμα.</Text>
+              </View>
+            )}
+          </View>
+          </>
+        ) : null}
 
         {/* ---- preferences ---- */}
         {prefs ? (

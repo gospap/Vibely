@@ -66,31 +66,70 @@ export default StyleSheet.create({
     justifyContent: "center",
   },
 
-  /* ---- store picker ---- */
-  chips: {
-    gap: 8,
-    paddingRight: 8,
-  },
-
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: T.radius.pill,
+  /* ---- which venue you are managing ---- */
+  storeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: 78,
+    borderRadius: T.radius.md,
     backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+    overflow: "hidden",
   },
 
-  chipActive: {
-    backgroundColor: T.primarySoft,
+  storeImage: {
+    width: 78,
+    height: 78,
+    backgroundColor: T.elevated,
   },
 
-  chipText: {
+  storeBody: {
+    flex: 1,
+    gap: 2,
+    paddingHorizontal: 12,
+  },
+
+  storeName: {
+    color: T.text,
+    fontSize: 15.5,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
+  storeMeta: {
+    color: T.textFaint,
+    fontSize: 11.5,
+  },
+
+  storePlan: {
     color: T.textMuted,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
   },
 
-  chipTextActive: {
-    color: T.text,
+  switcher: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingRight: 8,
+  },
+
+  switchArrow: {
+    width: 28,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: T.radius.sm,
+    backgroundColor: T.surfaceAlt,
+  },
+
+  switchCount: {
+    color: T.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    minWidth: 26,
+    textAlign: "center",
   },
 
   /* ---- cards ---- */

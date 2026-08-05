@@ -3,6 +3,7 @@ import {
   SafeAreaView,
   View,
   Text,
+  Image,
   ScrollView,
   Pressable,
   TextInput,
@@ -117,8 +118,19 @@ export default function VenueScreen() {
     }, [load]),
   );
 
-  const store = stores.find((s) => s._id === storeId);
+  const index = Math.max(
+    0,
+    stores.findIndex((s) => s._id === storeId),
+  );
+  const store = stores[index];
   const isTonight = dateKey === currentNightKey();
+
+  // Wraps around, so three venues cycle rather than dead-ending at either edge.
+  const step = (delta) => {
+    if (stores.length < 2) return;
+    const next = (index + delta + stores.length) % stores.length;
+    setStoreId(stores[next]._id);
+  };
 
   const setLive = async (crowd) => {
     // Tapping the active level again turns reporting off, which is how a venue
@@ -271,7 +283,7 @@ export default function VenueScreen() {
         ) : null}
 
         <View style={styles.titleRow}>
-          <Text style={styles.title}>{store?.name}</Text>
+          <Text style={styles.title}>Μαγαζί</Text>
 
           {/* Always reachable. The banners below only appear when the trial is
               nearly out, and billing has to be findable before then. */}
@@ -292,29 +304,61 @@ export default function VenueScreen() {
           </Pressable>
         </View>
 
-        {stores.length > 1 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chips}
-          >
-            {stores.map((s) => {
-              const active = s._id === storeId;
-              return (
-                <Pressable
-                  key={s._id}
-                  onPress={() => setStoreId(s._id)}
-                  style={[styles.chip, active && styles.chipActive]}
+        {/* Which venue you are managing. Same row as an event card, rounded
+            because this one sits on top rather than in a stacked list. */}
+        {store ? (
+          <View style={styles.storeCard}>
+            <Image source={{ uri: store.images?.[0] }} style={styles.storeImage} />
+
+            <View style={styles.storeBody}>
+              <Text style={styles.storeName} numberOfLines={1}>
+                {store.name}
+              </Text>
+              <Text style={styles.storeMeta} numberOfLines={1}>
+                {store.area}
+                {store.category ? ` · ${store.category}` : ""}
+              </Text>
+
+              {store.subscription ? (
+                <Text
+                  style={[
+                    styles.storePlan,
+                    !store.subscription.entitled && { color: T.danger },
+                  ]}
                 >
-                  <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
-                  >
-                    {s.name}
-                  </Text>
+                  {store.subscription.onTrial
+                    ? `Δοκιμή · ${store.subscription.trialDaysLeft} μέρες`
+                    : store.subscription.entitled
+                      ? "Ενεργή συνδρομή"
+                      : "Χωρίς συνδρομή"}
+                </Text>
+              ) : null}
+            </View>
+
+            {stores.length > 1 ? (
+              <View style={styles.switcher}>
+                <Pressable
+                  style={styles.switchArrow}
+                  onPress={() => step(-1)}
+                  hitSlop={6}
+                >
+                  <ChevronLeft size={17} color={T.text} strokeWidth={2.4} />
                 </Pressable>
-              );
-            })}
-          </ScrollView>
+
+                <Text style={styles.switchCount}>
+                  {index + 1}/{stores.length}
+                </Text>
+
+                <Pressable
+                  style={styles.switchArrow}
+                  onPress={() => step(1)}
+                  hitSlop={6}
+                >
+                  <ChevronRight size={17} color={T.text} strokeWidth={2.4} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
         ) : null}
 
         {/* ---- live status: always about tonight ---- */}
