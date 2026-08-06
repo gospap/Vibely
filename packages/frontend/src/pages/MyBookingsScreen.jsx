@@ -11,7 +11,10 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { ChevronLeft, CalendarCheck, Users, Clock } from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
 
 import EmptyState from "@/components/EmptyState";
 import { API_URL } from "@/constants/api";

@@ -8,15 +8,13 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {
-  ChevronLeft,
-  Bookmark,
-  Star,
-  CalendarDays,
-  UserCheck,
-  Repeat,
-  Lock,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import Bookmark from "lucide-react-native/dist/esm/icons/bookmark";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import CalendarDays from "lucide-react-native/dist/esm/icons/calendar-days";
+import UserCheck from "lucide-react-native/dist/esm/icons/user-check";
+import Repeat from "lucide-react-native/dist/esm/icons/repeat";
+import Lock from "lucide-react-native/dist/esm/icons/lock";
 
 import { API_URL } from "@/constants/api";
 import { formatNightKey } from "@/utils/format";

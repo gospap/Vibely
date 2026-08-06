@@ -9,7 +9,11 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ChevronLeft, MessageCircle, UserPlus, UserMinus, Clock } from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import MessageCircle from "lucide-react-native/dist/esm/icons/message-circle";
+import UserPlus from "lucide-react-native/dist/esm/icons/user-plus";
+import UserMinus from "lucide-react-native/dist/esm/icons/user-minus";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";

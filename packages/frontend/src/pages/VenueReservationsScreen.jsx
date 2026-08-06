@@ -10,14 +10,12 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import {
-  Users,
-  Clock,
-  Check,
-  X,
-  CalendarCheck,
-  Store as StoreIcon,
-} from "lucide-react-native";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import X from "lucide-react-native/dist/esm/icons/x";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
+import StoreIcon from "lucide-react-native/dist/esm/icons/store";
 
 import Avatar from "@/components/Avatar";
 import EmptyState from "@/components/EmptyState";

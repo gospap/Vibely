@@ -1,12 +1,10 @@
 import { View, Text, Image, Pressable, StyleSheet, Dimensions } from "react-native";
-import {
-  Crown,
-  Martini,
-  CalendarCheck,
-  Gift,
-  Radio,
-  Music,
-} from "lucide-react-native";
+import Crown from "lucide-react-native/dist/esm/icons/crown";
+import Martini from "lucide-react-native/dist/esm/icons/martini";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
+import Gift from "lucide-react-native/dist/esm/icons/gift";
+import Radio from "lucide-react-native/dist/esm/icons/radio";
+import Music from "lucide-react-native/dist/esm/icons/music";
 import { T } from "@/styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

@@ -12,14 +12,12 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as WebBrowser from "expo-web-browser";
-import {
-  ChevronLeft,
-  CreditCard,
-  TriangleAlert,
-  Check,
-  Clock,
-  ReceiptText,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import CreditCard from "lucide-react-native/dist/esm/icons/credit-card";
+import TriangleAlert from "lucide-react-native/dist/esm/icons/triangle-alert";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import ReceiptText from "lucide-react-native/dist/esm/icons/receipt-text";
 
 import { API_URL } from "@/constants/api";
 import { formatFullDate } from "@/utils/format";

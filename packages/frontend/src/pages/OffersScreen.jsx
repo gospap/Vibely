@@ -10,13 +10,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  Tag,
-  Clock,
-  Crown,
-  PartyPopper,
-  ChevronLeft,
-} from "lucide-react-native";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Crown from "lucide-react-native/dist/esm/icons/crown";
+import PartyPopper from "lucide-react-native/dist/esm/icons/party-popper";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
 
 import EmptyState from "@/components/EmptyState";
 import SearchField from "@/components/SearchField";

@@ -11,20 +11,18 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import {
-  X,
-  Navigation2,
-  Bookmark,
-  Clock,
-  Phone,
-  Star,
-  CalendarPlus,
-  Gift,
-  Radio,
-  Tag,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Navigation2 from "lucide-react-native/dist/esm/icons/navigation-2";
+import Bookmark from "lucide-react-native/dist/esm/icons/bookmark";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Phone from "lucide-react-native/dist/esm/icons/phone";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import CalendarPlus from "lucide-react-native/dist/esm/icons/calendar-plus";
+import Gift from "lucide-react-native/dist/esm/icons/gift";
+import Radio from "lucide-react-native/dist/esm/icons/radio";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import Sparkles from "lucide-react-native/dist/esm/icons/sparkles";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";

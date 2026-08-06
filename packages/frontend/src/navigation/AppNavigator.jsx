@@ -11,14 +11,12 @@ import {
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
-import {
-  House,
-  CalendarDays,
-  Users,
-  User,
-  Store,
-  CalendarCheck,
-} from "lucide-react-native";
+import House from "lucide-react-native/dist/esm/icons/house";
+import CalendarDays from "lucide-react-native/dist/esm/icons/calendar-days";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import User from "lucide-react-native/dist/esm/icons/user";
+import Store from "lucide-react-native/dist/esm/icons/store";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
 
 import HomeScreen from "@/pages/HomeScreen";
 import EventsScreen from "@/pages/EventsScreen";

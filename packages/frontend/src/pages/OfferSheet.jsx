@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { View, Text, Modal, Pressable, ActivityIndicator, Alert } from "react-native";
-import { X, Tag, Check } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import Check from "lucide-react-native/dist/esm/icons/check";
 
 import Button from "@/components/Button";
 import { API_URL } from "@/constants/api";

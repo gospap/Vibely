@@ -9,7 +9,12 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { X, Minus, Plus, Check, Clock, Users } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Minus from "lucide-react-native/dist/esm/icons/minus";
+import Plus from "lucide-react-native/dist/esm/icons/plus";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Users from "lucide-react-native/dist/esm/icons/users";
 
 import Button from "@/components/Button";
 import { AuthContext } from "@/context/AuthContext";

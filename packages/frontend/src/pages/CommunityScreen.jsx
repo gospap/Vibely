@@ -9,7 +9,10 @@ import {
   SafeAreaView,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { MessageCircle, UserPlus, Users, SearchX } from "lucide-react-native";
+import MessageCircle from "lucide-react-native/dist/esm/icons/message-circle";
+import UserPlus from "lucide-react-native/dist/esm/icons/user-plus";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import SearchX from "lucide-react-native/dist/esm/icons/search-x";
 
 import Avatar from "@/components/Avatar";
 import SearchField from "@/components/SearchField";

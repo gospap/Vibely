@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { X, Camera } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Camera from "lucide-react-native/dist/esm/icons/camera";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";

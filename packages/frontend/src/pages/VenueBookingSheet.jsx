@@ -7,7 +7,9 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { X, Users, Clock } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";

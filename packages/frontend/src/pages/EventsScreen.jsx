@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { CalendarX, Users } from "lucide-react-native";
+import CalendarX from "lucide-react-native/dist/esm/icons/calendar-x";
+import Users from "lucide-react-native/dist/esm/icons/users";
 
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";

@@ -12,21 +12,19 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Users,
-  Clock,
-  Check,
-  X,
-  Store as StoreIcon,
-  Radio,
-  KeyRound,
-  ChartNoAxesColumn,
-  Tag,
-  TriangleAlert,
-  CreditCard,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import X from "lucide-react-native/dist/esm/icons/x";
+import StoreIcon from "lucide-react-native/dist/esm/icons/store";
+import Radio from "lucide-react-native/dist/esm/icons/radio";
+import KeyRound from "lucide-react-native/dist/esm/icons/key-round";
+import ChartNoAxesColumn from "lucide-react-native/dist/esm/icons/chart-no-axes-column";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import TriangleAlert from "lucide-react-native/dist/esm/icons/triangle-alert";
+import CreditCard from "lucide-react-native/dist/esm/icons/credit-card";
 
 import Avatar from "@/components/Avatar";
 import EmptyState from "@/components/EmptyState";

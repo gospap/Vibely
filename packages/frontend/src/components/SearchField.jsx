@@ -1,6 +1,8 @@
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
-import { Search, X, SlidersHorizontal } from "lucide-react-native";
+import Search from "lucide-react-native/dist/esm/icons/search";
+import X from "lucide-react-native/dist/esm/icons/x";
+import SlidersHorizontal from "lucide-react-native/dist/esm/icons/sliders-horizontal";
 import { T } from "@/styles/theme";
 
 // Same glass treatment as the tab bar: a dark blur, a hairline highlight along

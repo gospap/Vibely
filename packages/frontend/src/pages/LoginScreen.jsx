@@ -9,7 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react-native";
+import Mail from "lucide-react-native/dist/esm/icons/mail";
+import Lock from "lucide-react-native/dist/esm/icons/lock";
+import Eye from "lucide-react-native/dist/esm/icons/eye";
+import EyeOff from "lucide-react-native/dist/esm/icons/eye-off";
+import ArrowRight from "lucide-react-native/dist/esm/icons/arrow-right";
 
 import styles from "./LoginScreen.styles";
 import { AuthContext } from "@/context/AuthContext";

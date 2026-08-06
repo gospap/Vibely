@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Star } from "lucide-react-native";
+import Star from "lucide-react-native/dist/esm/icons/star";
 import { T } from "@/styles/theme";
 
 // Read-only by default. Pass onChange to turn it into the review input — the

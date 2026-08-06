@@ -12,7 +12,10 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
-import { ChevronLeft, Ticket, X, Check } from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import Ticket from "lucide-react-native/dist/esm/icons/ticket";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Check from "lucide-react-native/dist/esm/icons/check";
 
 import EmptyState from "@/components/EmptyState";
 import { API_URL } from "@/constants/api";

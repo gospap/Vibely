@@ -12,18 +12,16 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  Pencil,
-  LogOut,
-  CalendarDays,
-  Users,
-  CalendarCheck,
-  Gift,
-  ChevronRight,
-  Ticket,
-  Store as StoreIcon,
-  ChartNoAxesColumn,
-} from "lucide-react-native";
+import Pencil from "lucide-react-native/dist/esm/icons/pencil";
+import LogOut from "lucide-react-native/dist/esm/icons/log-out";
+import CalendarDays from "lucide-react-native/dist/esm/icons/calendar-days";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
+import Gift from "lucide-react-native/dist/esm/icons/gift";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import Ticket from "lucide-react-native/dist/esm/icons/ticket";
+import StoreIcon from "lucide-react-native/dist/esm/icons/store";
+import ChartNoAxesColumn from "lucide-react-native/dist/esm/icons/chart-no-axes-column";
 
 import { AuthContext } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";

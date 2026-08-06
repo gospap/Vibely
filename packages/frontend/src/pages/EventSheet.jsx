@@ -10,16 +10,14 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {
-  X,
-  Clock,
-  Disc3,
-  MapPin,
-  Ticket,
-  Users,
-  Check,
-  CalendarPlus,
-} from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Disc3 from "lucide-react-native/dist/esm/icons/disc-3";
+import MapPin from "lucide-react-native/dist/esm/icons/map-pin";
+import Ticket from "lucide-react-native/dist/esm/icons/ticket";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import CalendarPlus from "lucide-react-native/dist/esm/icons/calendar-plus";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";

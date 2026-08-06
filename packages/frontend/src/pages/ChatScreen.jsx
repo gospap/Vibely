@@ -13,7 +13,9 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { ChevronLeft, ImagePlus, Send } from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import ImagePlus from "lucide-react-native/dist/esm/icons/image-plus";
+import Send from "lucide-react-native/dist/esm/icons/send";
 
 import Avatar from "@/components/Avatar";
 import { SocketContext } from "@/context/SocketContext";
