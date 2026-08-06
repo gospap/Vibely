@@ -40,8 +40,8 @@ import StoreSheet from "./StoreSheet";
 import { API_URL } from "@/constants/api";
 import { CATEGORIES } from "@/constants/categories";
 import { toQuery } from "@/utils/query";
-import { T } from "@/styles/theme";
-import styles from "./HomeScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./HomeScreen.styles";
 import {
   extractSteps,
   formatDistance,
@@ -85,6 +85,9 @@ const MANEUVER_ICONS = {
 };
 
 export default function HomeScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const mapRef = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();

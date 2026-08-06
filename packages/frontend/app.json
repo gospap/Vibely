@@ -36,6 +36,20 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Η Vibely χρειάζεται την κάμερα για να σκανάρει τα QR των πελατών σου.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#4F7CFF",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {

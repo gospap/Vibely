@@ -5,7 +5,7 @@ import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
 import Gift from "lucide-react-native/dist/esm/icons/gift";
 import Radio from "lucide-react-native/dist/esm/icons/radio";
 import Music from "lucide-react-native/dist/esm/icons/music";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -46,6 +46,8 @@ const capabilitiesOf = (store) => {
 // A full-bleed banner: image on the left, a dark panel on the right, and a 45°
 // cut between them. Short enough to sit above the feed like a header.
 export default function PromotedCard({ event, onPress }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const store = event.store;
   const capabilities = capabilitiesOf(store);
 
@@ -98,7 +100,7 @@ export default function PromotedCard({ event, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   card: {
     width: SCREEN_WIDTH,
     height: HEIGHT,
@@ -200,4 +202,4 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: "600",
   },
-});
+}));

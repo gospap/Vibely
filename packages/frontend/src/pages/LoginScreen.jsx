@@ -15,13 +15,16 @@ import Eye from "lucide-react-native/dist/esm/icons/eye";
 import EyeOff from "lucide-react-native/dist/esm/icons/eye-off";
 import ArrowRight from "lucide-react-native/dist/esm/icons/arrow-right";
 
-import styles from "./LoginScreen.styles";
+import styleSheet from "./LoginScreen.styles";
 import { AuthContext } from "@/context/AuthContext";
 import { Logo } from "@/components/Logo";
 import TriangleLoader from "@/components/TriangleLoader";
-import { T } from "@/styles/theme";
+import { useStyles, useTheme } from "@/styles/theme";
 
 export default function LoginScreen({ navigation }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

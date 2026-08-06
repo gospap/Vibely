@@ -1,7 +1,6 @@
-import { StyleSheet } from "react-native";
-import { T, TAB_BAR_SPACE } from "@/styles/theme";
+import { makeStyles, TAB_BAR_SPACE } from "@/styles/theme";
 
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   container: {
     flex: 1,
     backgroundColor: T.bg,
@@ -163,4 +162,4 @@ export default StyleSheet.create({
     lineHeight: 16,
     paddingTop: 6,
   },
-});
+}));

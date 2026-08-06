@@ -22,6 +22,43 @@ function subscriptionPeriod(subscription) {
 // on the subscription itself, because one customer can hold several.
 const storeIdOf = (subscription) => subscription?.metadata?.storeId ?? null;
 
+// Which subscription an invoice is for.
+//
+// `subscription` was removed from the Invoice object in Stripe's 2025-03-31
+// API version and moved under `parent` — and the SDK here pins a version well
+// past that. Reading only the old field means every invoice event looks like a
+// one-off payment, so renewals never mark the venue active again and no charge
+// is ever recorded. All three known shapes are read: the removed top-level
+// field, the current `parent`, and the line items, which carry it when the
+// invoice itself does not.
+const invoiceSubscriptionId = (invoice) => {
+  const asId = (value) =>
+    typeof value === "string" ? value : (value?.id ?? null);
+
+  const direct = asId(invoice.subscription);
+  if (direct) return direct;
+
+  const parent = asId(invoice.parent?.subscription_details?.subscription);
+  if (parent) return parent;
+
+  for (const line of invoice.lines?.data ?? []) {
+    const fromLine = asId(
+      line.parent?.subscription_item_details?.subscription ?? line.subscription,
+    );
+    if (fromLine) return fromLine;
+  }
+
+  return null;
+};
+
+// The card this particular subscription charges. Null means it falls back to
+// whatever the customer's default is, which is the normal case until a venue
+// picks a specific card for itself.
+const paymentMethodOf = (subscription) => {
+  const method = subscription?.default_payment_method;
+  return typeof method === "string" ? method : (method?.id ?? null);
+};
+
 const setStoreSubscription = async (storeId, fields) => {
   if (!storeId || !ObjectId.isValid(storeId)) return;
 
@@ -86,6 +123,7 @@ router.post("/", async (req, res) => {
           currentPeriodStart: period.start,
           currentPeriodEnd: period.end,
           cancelAtPeriodEnd: false,
+          defaultPaymentMethodId: paymentMethodOf(subscription),
         });
 
         console.log(`Subscription active for store ${storeIdOf(subscription)}`);
@@ -101,6 +139,9 @@ router.post("/", async (req, res) => {
           currentPeriodStart: period.start,
           currentPeriodEnd: period.end,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
+          // Changing the card in Stripe's own portal fires this too, so the
+          // venue's screen agrees with Stripe either way round.
+          defaultPaymentMethodId: paymentMethodOf(subscription),
         });
 
         console.log(
@@ -126,11 +167,11 @@ router.post("/", async (req, res) => {
 
       case "invoice.payment_failed": {
         const invoice = event.data.object;
-        if (!invoice.subscription) break;
+        const subscriptionId = invoiceSubscriptionId(invoice);
+        if (!subscriptionId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(
-          invoice.subscription,
-        );
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
 
         // Left as past_due, which still counts as entitled — Stripe retries for
         // days, and pulling a venue off the map over one bounced card would
@@ -150,11 +191,11 @@ router.post("/", async (req, res) => {
 
       case "invoice.paid": {
         const invoice = event.data.object;
-        if (!invoice.subscription) break;
+        const subscriptionId = invoiceSubscriptionId(invoice);
+        if (!subscriptionId) break;
 
-        const subscription = await stripe.subscriptions.retrieve(
-          invoice.subscription,
-        );
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
         const storeId = storeIdOf(subscription);
         const line = invoice.lines?.data?.[0];
 

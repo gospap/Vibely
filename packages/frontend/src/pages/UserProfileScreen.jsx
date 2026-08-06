@@ -19,8 +19,8 @@ import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import { API_URL } from "@/constants/api";
 import { formatFullDate } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./UserProfileScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./UserProfileScreen.styles";
 
 // Session cookie or the API treats every call as a stranger.
 const call = async (path, method = "GET") => {
@@ -30,6 +30,9 @@ const call = async (path, method = "GET") => {
 };
 
 export default function UserProfileScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
   const { userId } = useRoute().params;
 

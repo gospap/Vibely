@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -18,11 +18,12 @@ import Avatar from "@/components/Avatar";
 import SearchField from "@/components/SearchField";
 import UserRow from "@/components/UserRow";
 import EmptyState from "@/components/EmptyState";
+import { SocketContext } from "@/context/SocketContext";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
 import { formatTimeAgo } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./CommunityScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./CommunityScreen.styles";
 
 const TABS = [
   { key: "chats", label: "Συνομιλίες", Icon: MessageCircle },
@@ -41,7 +42,11 @@ const call = async (path, method = "GET") => {
 };
 
 export default function CommunityScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
+  const socket = useContext(SocketContext);
 
   const [tab, setTab] = useState("chats");
   const [query, setQuery] = useState("");
@@ -83,6 +88,17 @@ export default function CommunityScreen() {
       load();
     }, [load]),
   );
+
+  // A message that lands while this list is open has to move the thread to the
+  // top and light its badge, without the user pulling to refresh.
+  useEffect(() => {
+    if (!socket) return undefined;
+
+    const onNew = () => load();
+
+    socket.on("message:new", onNew);
+    return () => socket.off("message:new", onNew);
+  }, [socket, load]);
 
   /* --- debounced people search --- */
   const searchTimer = useRef(null);

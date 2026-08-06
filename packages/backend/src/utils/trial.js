@@ -29,7 +29,14 @@ const entitlement = (store, now = new Date()) => {
   const sub = store?.subscription ?? {};
 
   const trialEndsAt = sub.trialEndsAt ? new Date(sub.trialEndsAt) : null;
-  const onTrial = !!trialEndsAt && trialEndsAt > now;
+
+  // Subscribing ends the trial, whatever the date says. Venues normally pay
+  // before their 14 days are up, so a trial that is merely still in the future
+  // would otherwise keep reporting a paid venue as "on trial" — and every
+  // screen ranks trial above active, so it would offer to sell a subscription
+  // to someone who already bought one.
+  const onTrial =
+    !!trialEndsAt && trialEndsAt > now && !sub.stripeSubscriptionId;
 
   return {
     entitled: onTrial || ENTITLED_PLANS.includes(sub.plan),

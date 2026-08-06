@@ -6,12 +6,15 @@ import Check from "lucide-react-native/dist/esm/icons/check";
 
 import Button from "@/components/Button";
 import { API_URL } from "@/constants/api";
-import { T } from "@/styles/theme";
-import styles from "./OfferSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./OfferSheet.styles";
 
 // Take tonight's offer and get the code to show at the bar. Deliberately not a
 // payment: the guest pays nothing to Vibely, the discount happens at the till.
 export default function OfferSheet({ storeId, store, offer, onClose, onClaimed }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [claim, setClaim] = useState(null);
   const [busy, setBusy] = useState(false);
 

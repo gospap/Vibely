@@ -66,9 +66,24 @@ const INDEXES = {
     [{ offer: 1, user: 1 }, { unique: true }],
     // The venue looks a code up at the bar.
     [{ offer: 1, code: 1 }],
+    // Who has been let in tonight, newest scan first.
+    [{ store: 1, redeemedAt: -1 }],
   ],
 
-  messages: [[{ conversationId: 1, createdAt: -1 }]],
+  rewards: [
+    // One coupon per filled card. `cycle` is which card it was, so a second
+    // scan on the same night cannot mint a duplicate for the same five nights.
+    [{ user: 1, store: 1, cycle: 1 }, { unique: true }],
+    // The door looks a coupon up by what it scanned.
+    [{ store: 1, code: 1 }, { unique: true }],
+    [{ user: 1, createdAt: -1 }],
+  ],
+
+  messages: [
+    [{ conversationId: 1, createdAt: -1 }],
+    // The tab badge and the push badge both count exactly this.
+    [{ receiver: 1, read: 1 }],
+  ],
 
   userpreferences: [[{ user: 1 }, { unique: true }]],
 };

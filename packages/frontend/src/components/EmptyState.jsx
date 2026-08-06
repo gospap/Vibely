@@ -1,7 +1,9 @@
 import { View, Text, StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 export default function EmptyState({ icon: Icon, title, subtitle }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.container}>
       {Icon ? <Icon size={34} color={T.textFaint} strokeWidth={1.6} /> : null}
@@ -11,7 +13,7 @@ export default function EmptyState({ icon: Icon, title, subtitle }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   container: {
     alignItems: "center",
     justifyContent: "center",
@@ -31,4 +33,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
   },
-});
+}));

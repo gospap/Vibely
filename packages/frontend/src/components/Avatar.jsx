@@ -1,9 +1,11 @@
 import { View, Text, Image, StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 // Falls back to the first letter of the name, so a user without a photo still
 // gets something stable to look at.
 export default function Avatar({ uri, name, size = 48, ring = false }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const initial = (name || "?").trim().charAt(0).toUpperCase();
 
   const frame = {
@@ -25,7 +27,7 @@ export default function Avatar({ uri, name, size = 48, ring = false }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   image: {
     backgroundColor: T.surfaceAlt,
   },
@@ -38,4 +40,4 @@ const styles = StyleSheet.create({
     color: T.textMuted,
     fontWeight: "700",
   },
-});
+}));

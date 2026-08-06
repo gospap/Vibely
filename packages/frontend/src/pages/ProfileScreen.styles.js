@@ -1,7 +1,6 @@
-import { StyleSheet } from "react-native";
-import { T, TAB_BAR_SPACE } from "@/styles/theme";
+import { makeStyles, TAB_BAR_SPACE } from "@/styles/theme";
 
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   container: {
     flex: 1,
     backgroundColor: T.bg,
@@ -109,7 +108,98 @@ export default StyleSheet.create({
     fontWeight: "600",
   },
 
-  /* ---- grouped rows ---- */
+  /* ---- the stamp card entry ---- */
+  coupons: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 13,
+    padding: 16,
+    borderRadius: T.radius.lg,
+    backgroundColor: T.primary,
+  },
+
+  couponsIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  couponsText: {
+    flex: 1,
+    gap: 3,
+  },
+
+  couponsTitle: {
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+  },
+
+  couponsHint: {
+    color: "rgba(255,255,255,0.82)",
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+
+  /* ---- light / dark ---- */
+  themeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  themeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: T.radius.md,
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+
+  themeActive: {
+    backgroundColor: T.primarySoft,
+    borderColor: T.primary,
+  },
+
+  themeLabel: {
+    color: T.textMuted,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  /* ---- a titled block of rows ---- */
+  section: {
+    gap: 10,
+  },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  sectionTitle: {
+    color: T.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+
+  sectionAction: {
+    color: T.primary,
+    fontSize: 12.5,
+    fontWeight: "700",
+  },
+
   group: {
     borderRadius: T.radius.md,
     backgroundColor: T.surface,
@@ -185,6 +275,137 @@ export default StyleSheet.create({
     fontSize: 12.5,
     lineHeight: 18,
     padding: 14,
+  },
+
+  /* ---- wallet (tenant): the card on file and what it has been charged ---- */
+  walletTotals: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    paddingVertical: 14,
+  },
+
+  walletTotalBlock: {
+    flex: 1,
+    gap: 4,
+    paddingHorizontal: 14,
+  },
+
+  walletTotalDivider: {
+    width: 1,
+    backgroundColor: T.border,
+  },
+
+  walletTotalLabel: {
+    color: T.textFaint,
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+
+  walletTotalValue: {
+    color: T.text,
+    fontSize: 21,
+    fontWeight: "900",
+    letterSpacing: -0.4,
+  },
+
+  walletNext: {
+    color: T.textMuted,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  walletRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+
+  walletCardWrap: {
+    padding: 14,
+  },
+
+  /* ---- the section's primary action ---- */
+  walletManage: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    margin: 12,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.primary,
+  },
+
+  walletManageText: {
+    flex: 1,
+    gap: 1,
+  },
+
+  walletManageLabel: {
+    color: "#fff",
+    fontSize: 14.5,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+
+  walletManageHint: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+
+  walletText: {
+    flex: 1,
+    gap: 2,
+  },
+
+  walletTitle: {
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  walletMeta: {
+    color: T.textFaint,
+    fontSize: 11.5,
+    fontWeight: "600",
+  },
+
+  walletCaption: {
+    color: T.textFaint,
+    fontSize: 10.5,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 2,
+  },
+
+  walletReceipt: {
+    color: T.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  walletAssign: {
+    color: T.primary,
+    fontSize: 11.5,
+    fontWeight: "800",
+  },
+
+  walletEmpty: {
+    color: T.textFaint,
+    fontSize: 12.5,
+    lineHeight: 18,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 14,
   },
 
   /* ---- stamp cards ---- */
@@ -376,4 +597,4 @@ export default StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-});
+}));

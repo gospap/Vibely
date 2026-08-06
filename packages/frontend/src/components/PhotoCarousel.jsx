@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { View, Image, ScrollView, StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 // Paged horizontal scroller with dots. Falls back to a flat placeholder when a
 // store has no photos yet.
 export default function PhotoCarousel({ images = [], height = 220, width }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const [index, setIndex] = useState(0);
 
   const photos = images.filter(Boolean);
@@ -40,7 +42,7 @@ export default function PhotoCarousel({ images = [], height = 220, width }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   placeholder: {
     backgroundColor: T.surfaceAlt,
   },
@@ -63,4 +65,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     width: 18,
   },
-});
+}));

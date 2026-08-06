@@ -1,9 +1,8 @@
-import { StyleSheet } from "react-native";
-import { T, SHADOW_CARD } from "@/styles/theme";
+import { makeStyles, SHADOW_CARD } from "@/styles/theme";
 
 // Shared by Login and SignUp — the two screens are the same form with a
 // different number of fields, so they should not drift apart visually.
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   container: {
     flex: 1,
     backgroundColor: T.bg,
@@ -158,4 +157,4 @@ export default StyleSheet.create({
     fontWeight: "700",
     color: T.primary,
   },
-});
+}));

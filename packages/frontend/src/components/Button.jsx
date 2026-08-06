@@ -1,5 +1,5 @@
 import { Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 export default function Button({
   label,
@@ -10,6 +10,8 @@ export default function Button({
   icon: Icon,
   style,
 }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const isDisabled = disabled || loading;
 
   return (
@@ -42,7 +44,7 @@ export default function Button({
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   base: {
     flexDirection: "row",
     alignItems: "center",
@@ -77,4 +79,4 @@ const styles = StyleSheet.create({
   secondaryLabel: { color: T.text },
   outlineLabel: { color: T.text },
   dangerLabel: { color: T.danger },
-});
+}));

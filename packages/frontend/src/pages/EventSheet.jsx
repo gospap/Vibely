@@ -25,12 +25,15 @@ import RatingStars from "@/components/RatingStars";
 import BookingSheet from "./BookingSheet";
 import { API_URL } from "@/constants/api";
 import { formatFullDate, formatPrice, toDateKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./EventSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./EventSheet.styles";
 
 // Bottom sheet for one event: full details, the host store with its rating, who
 // is going, and the join button.
 export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [event, setEvent] = useState(null);
@@ -259,6 +262,8 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
 }
 
 function Fact({ Icon, label, value }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.fact}>
       <Icon size={15} color={T.textMuted} strokeWidth={2} />

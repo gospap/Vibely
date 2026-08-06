@@ -22,8 +22,8 @@ import EmptyState from "@/components/EmptyState";
 import VenueBookingSheet from "./VenueBookingSheet";
 import { API_URL } from "@/constants/api";
 import { formatNightKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./VenueReservationsScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./VenueReservationsScreen.styles";
 
 const call = async (path, { method = "GET", body } = {}) => {
   const res = await fetch(`${API_URL}${path}`, {
@@ -44,18 +44,21 @@ const SCOPES = [
   { key: "past", label: "Ιστορικό" },
 ];
 
-const STATUS = {
+const STATUS = (T) => ({
   pending: { label: "Σε αναμονή", color: T.warning },
   confirmed: { label: "Επιβεβαιωμένη", color: T.primary },
   declined: { label: "Απορρίφθηκε", color: T.danger },
   cancelled: { label: "Ακυρώθηκε", color: T.textFaint },
   seated: { label: "Ήρθαν", color: T.accent },
   no_show: { label: "Δεν ήρθαν", color: T.danger },
-};
+});
 
 // The booking book. VenueScreen answers "who is coming tonight"; this answers
 // "what still needs me", across every night at once.
 export default function VenueReservationsScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(null);
 
@@ -251,7 +254,9 @@ export default function VenueReservationsScreen() {
 }
 
 function Row({ reservation, onOpen, onRespond }) {
-  const status = STATUS[reservation.status] ?? STATUS.pending;
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+  const status = STATUS(T)[reservation.status] ?? STATUS(T).pending;
 
   return (
     <Pressable style={styles.row} onPress={onOpen}>

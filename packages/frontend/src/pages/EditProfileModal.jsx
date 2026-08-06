@@ -18,8 +18,8 @@ import Button from "@/components/Button";
 import Chip from "@/components/Chip";
 import { API_URL } from "@/constants/api";
 import { pickAndUpload } from "@/utils/upload";
-import { T } from "@/styles/theme";
-import styles from "./EditProfileModal.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./EditProfileModal.styles";
 
 const GENDERS = [
   { key: "male", label: "Άνδρας" },
@@ -53,6 +53,9 @@ const parseDate = (text) => {
 };
 
 export default function EditProfileModal({ visible, user, onClose, onSaved }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [gender, setGender] = useState(null);
@@ -239,6 +242,7 @@ export default function EditProfileModal({ visible, user, onClose, onSaved }) {
 }
 
 function Field({ label, children }) {
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>

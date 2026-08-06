@@ -39,8 +39,8 @@ import {
   todayHours,
   formatDistance,
 } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./StoreSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./StoreSheet.styles";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -65,6 +65,9 @@ const CROWD_LABELS = {
 // Everything about one venue: photos, rating breakdown, reviews, tonight's
 // events and the button that hands the destination back to the map.
 export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [store, setStore] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);

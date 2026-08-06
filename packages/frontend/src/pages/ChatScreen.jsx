@@ -12,19 +12,24 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
 import ImagePlus from "lucide-react-native/dist/esm/icons/image-plus";
 import Send from "lucide-react-native/dist/esm/icons/send";
 
 import Avatar from "@/components/Avatar";
 import { SocketContext } from "@/context/SocketContext";
+import { MessagesContext } from "@/context/MessagesContext";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
 import { pickAndUpload } from "@/utils/upload";
 import { formatClock, formatFullDate } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./ChatScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./ChatScreen.styles";
 
 const PAGE_SIZE = 30;
 // Fallback only: the socket delivers messages the moment they are written, and
@@ -47,6 +52,9 @@ const call = async (path, { method = "GET", body } = {}) => {
 };
 
 export default function ChatScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
   const { userId, username, profileImageUrl } = useRoute().params;
 
@@ -61,6 +69,7 @@ export default function ChatScreen() {
   const [uploading, setUploading] = useState(false);
 
   const socket = useContext(SocketContext);
+  const { setActiveThread, refreshUnread } = useContext(MessagesContext);
   const [connected, setConnected] = useState(false);
   const [theyAreTyping, setTheyAreTyping] = useState(false);
 
@@ -74,6 +83,36 @@ export default function ChatScreen() {
         `/messages/${userId}${toQuery({ page: pageNumber, limit: PAGE_SIZE })}`,
       ),
     [userId],
+  );
+
+  // Tells the app-level listener not to badge or notify for this thread — it is
+  // on screen, and anything that lands here is read the moment it arrives.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveThread(userId);
+      return () => setActiveThread(null);
+    }, [setActiveThread, userId]),
+  );
+
+  // Merge a page into what is already on screen without disturbing the order or
+  // re-adding anything. Used by both the reconnect catch-up and the poll.
+  const mergeIncoming = useCallback(
+    (items) => {
+      setMessages((prev) => {
+        const known = new Set(prev.map((m) => m._id));
+        const incoming = items.filter((m) => !known.has(m._id));
+        if (!incoming.length) return prev;
+
+        if (incoming.some((m) => !m.mine)) {
+          call(`/messages/${userId}/read`, { method: "POST" })
+            .then(refreshUnread)
+            .catch(() => {});
+        }
+
+        return [...incoming, ...prev];
+      });
+    },
+    [refreshUnread, userId],
   );
 
   /* --- first load + mark the thread as read --- */
@@ -90,6 +129,7 @@ export default function ChatScreen() {
         setPage(1);
 
         await call(`/messages/${userId}/read`, { method: "POST" });
+        refreshUnread();
       } catch (err) {
         if (!cancelled) Alert.alert("Σφάλμα", err.message);
       } finally {
@@ -100,7 +140,7 @@ export default function ChatScreen() {
     return () => {
       cancelled = true;
     };
-  }, [fetchPage, userId]);
+  }, [fetchPage, refreshUnread, userId]);
 
   /* --- live delivery over the socket --- */
   useEffect(() => {
@@ -111,7 +151,17 @@ export default function ChatScreen() {
 
     setConnected(socket.connected);
 
-    const onConnect = () => setConnected(true);
+    const onConnect = () => {
+      setConnected(true);
+
+      // Nothing was pushed while the socket was down — a backgrounded app can
+      // miss an entire conversation that way — so the thread is caught up the
+      // moment it is back rather than waiting for the next message to arrive.
+      fetchPage(1)
+        .then((data) => mergeIncoming(data.items))
+        .catch(() => {});
+    };
+
     const onDisconnect = () => setConnected(false);
 
     const onNew = (message) => {
@@ -123,7 +173,9 @@ export default function ChatScreen() {
       );
 
       // It arrived while the thread was open, so it has been seen.
-      call(`/messages/${userId}/read`, { method: "POST" }).catch(() => {});
+      call(`/messages/${userId}/read`, { method: "POST" })
+        .then(refreshUnread)
+        .catch(() => {});
     };
 
     const onRead = ({ by }) => {
@@ -161,7 +213,7 @@ export default function ChatScreen() {
       socket.off("typing", onTyping);
       clearTimeout(typingTimer.current);
     };
-  }, [socket, userId]);
+  }, [socket, userId, fetchPage, mergeIncoming, refreshUnread]);
 
   /* --- fallback poll, only while the socket is down --- */
   useEffect(() => {
@@ -170,26 +222,14 @@ export default function ChatScreen() {
     const timer = setInterval(async () => {
       try {
         const data = await fetchPage(1);
-
-        setMessages((prev) => {
-          const known = new Set(prev.map((m) => m._id));
-          const incoming = data.items.filter((m) => !known.has(m._id));
-          if (!incoming.length) return prev;
-
-          // Anything new from them is being looked at right now.
-          if (incoming.some((m) => !m.mine)) {
-            call(`/messages/${userId}/read`, { method: "POST" }).catch(() => {});
-          }
-
-          return [...incoming, ...prev];
-        });
+        mergeIncoming(data.items);
       } catch {
         // A dropped poll is not worth surfacing; the next one will catch up.
       }
     }, POLL_MS);
 
     return () => clearInterval(timer);
-  }, [connected, fetchPage, userId]);
+  }, [connected, fetchPage, mergeIncoming]);
 
   const loadOlder = async () => {
     if (!hasMore || loadingMore) return;

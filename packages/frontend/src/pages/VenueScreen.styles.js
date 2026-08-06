@@ -1,7 +1,6 @@
-import { StyleSheet } from "react-native";
-import { T, TAB_BAR_SPACE } from "@/styles/theme";
+import { makeStyles, TAB_BAR_SPACE } from "@/styles/theme";
 
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   container: {
     flex: 1,
     backgroundColor: T.bg,
@@ -250,6 +249,106 @@ export default StyleSheet.create({
     fontWeight: "700",
   },
 
+  scanButton: {
+    width: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: T.radius.sm,
+    backgroundColor: T.elevated,
+    borderWidth: 1,
+    borderColor: T.borderStrong,
+  },
+
+  /* ---- who walked in on the offer ---- */
+  redeemed: {
+    gap: 8,
+    padding: 12,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.surfaceAlt,
+  },
+
+  redeemedTitle: {
+    color: T.textMuted,
+    fontSize: 11.5,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  redeemedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  redeemedName: {
+    flex: 1,
+    color: T.text,
+    fontSize: 13.5,
+    fontWeight: "700",
+  },
+
+  redeemedCode: {
+    color: T.textFaint,
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+
+  redeemedTime: {
+    color: T.textFaint,
+    fontSize: 11.5,
+    minWidth: 38,
+    textAlign: "right",
+  },
+
+  /* ---- tonight's stamp QR ---- */
+  stampPlate: {
+    alignSelf: "center",
+    padding: 14,
+    borderRadius: T.radius.md,
+    // Always white, in both themes: a scanner needs the contrast and a phone
+    // camera reading a dark QR off a dark screen is unreliable.
+    backgroundColor: "#fff",
+  },
+
+  stampLead: {
+    color: T.text,
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+
+  nightsRow: {
+    flexDirection: "row",
+    gap: 7,
+  },
+
+  nightsOption: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: T.radius.sm,
+    backgroundColor: T.surfaceAlt,
+    borderWidth: 1,
+    borderColor: "transparent",
+    alignItems: "center",
+  },
+
+  nightsOptionActive: {
+    backgroundColor: T.primarySoft,
+    borderColor: T.primary,
+  },
+
+  nightsOptionText: {
+    color: T.textMuted,
+    fontSize: 15,
+    fontWeight: "800",
+  },
+
+  nightsOptionTextActive: {
+    color: T.primary,
+  },
+
   /* ---- door code ---- */
   codeRow: {
     flexDirection: "row",
@@ -478,4 +577,4 @@ export default StyleSheet.create({
     fontSize: 13.5,
     fontWeight: "700",
   },
-});
+}));
