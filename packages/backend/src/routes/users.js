@@ -2,6 +2,7 @@ const express = require("express");
 const { ObjectId } = require("mongodb");
 const { getDb } = require("../../db");
 const { requireAuth } = require("../middleware/auth");
+const { isExpoToken } = require("../utils/push");
 const {
   escapeRegex,
   normalizeText,
@@ -461,6 +462,116 @@ router.get("/me/friends/tonight", requireAuth, async (req, res) => {
 });
 
 /* =========================
+   GET /users/me/coupons
+   The stamp cards I am filling and the free drinks I have already earned.
+
+   One call so the coupons screen is a single fetch: progress on top, anything
+   claimable underneath.
+========================= */
+router.get("/me/coupons", requireAuth, async (req, res) => {
+  try {
+    const db = getDb();
+
+    const [visits, rewards] = await Promise.all([
+      db
+        .collection("checkins")
+        .aggregate([
+          { $match: { user: req.userId } },
+          {
+            $group: {
+              _id: "$store",
+              stamps: { $sum: 1 },
+              lastVisit: { $max: "$dateKey" },
+            },
+          },
+          { $sort: { lastVisit: -1 } },
+        ])
+        .toArray(),
+      db
+        .collection("rewards")
+        .find({ user: req.userId })
+        .sort({ createdAt: -1 })
+        .limit(50)
+        .toArray(),
+    ]);
+
+    const storeIds = [
+      ...new Set([
+        ...visits.map((v) => v._id.toString()),
+        ...rewards.map((r) => r.store.toString()),
+      ]),
+    ].map((id) => new ObjectId(id));
+
+    if (!storeIds.length) return res.json({ cards: [], coupons: [] });
+
+    const stores = await db
+      .collection("stores")
+      .find({ _id: { $in: storeIds } })
+      .project({ name: 1, images: 1, area: 1, loyalty: 1 })
+      .toArray();
+
+    const byId = new Map(stores.map((s) => [s._id.toString(), s]));
+
+    const cards = visits
+      .map((row) => {
+        const store = byId.get(row._id.toString());
+        if (!store?.loyalty?.enabled) return null;
+
+        const target = store.loyalty.stampsForReward ?? 5;
+
+        return {
+          store: {
+            _id: store._id,
+            name: store.name,
+            image: store.images?.[0],
+            area: store.area,
+          },
+          stamps: row.stamps,
+          stampsForReward: target,
+          // Where they are on the card they are filling right now.
+          progress: target > 0 ? row.stamps % target : 0,
+          remaining: target > 0 ? (target - (row.stamps % target)) % target : 0,
+          rewardLabel: store.loyalty.rewardLabel || "Δωρεάν ποτό",
+          lastVisit: row.lastVisit,
+        };
+      })
+      .filter(Boolean)
+      // Closest to a free drink first — that is the one worth looking at.
+      .sort((a, b) => a.remaining - b.remaining);
+
+    const coupons = rewards
+      .map((reward) => {
+        const store = byId.get(reward.store.toString());
+        if (!store) return null;
+
+        return {
+          _id: reward._id,
+          code: reward.code,
+          qr: `vibely:reward:${reward.store}:${reward.code}`,
+          rewardLabel: reward.rewardLabel,
+          redeemed: !!reward.redeemed,
+          redeemedAt: reward.redeemedAt ?? null,
+          usable: !reward.redeemed,
+          earnedAt: reward.createdAt,
+          store: {
+            _id: store._id,
+            name: store.name,
+            image: store.images?.[0],
+            area: store.area,
+          },
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => Number(b.usable) - Number(a.usable));
+
+    res.json({ cards, coupons });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
    GET /users/me/wallet
    Every code I am holding: the offers I claimed and the venues where my stamp
    card is full. What the guest shows at the door to be handed the actual drink.
@@ -530,6 +641,53 @@ router.get("/me/wallet", requireAuth, async (req, res) => {
         // Usable first, then the history.
         .sort((a, b) => Number(b.usable) - Number(a.usable)),
     );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   POST /users/me/push-token
+   The device says where it can be reached. Called on every launch, because a
+   token can be rotated by the OS at any time and the app is the only thing that
+   ever finds out.
+========================= */
+router.post("/me/push-token", requireAuth, async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!isExpoToken(token)) {
+      return res.status(400).json({ message: "Invalid push token" });
+    }
+
+    // $addToSet, not $set: the same account on a phone and a tablet must get
+    // notified on both, and re-registering the same device is then a no-op.
+    await getDb()
+      .collection("users")
+      .updateOne({ _id: req.userId }, { $addToSet: { pushTokens: token } });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   DELETE /users/me/push-token
+   Logging out drops only this device's token, so the other ones keep working.
+========================= */
+router.delete("/me/push-token", requireAuth, async (req, res) => {
+  try {
+    const { token } = req.body ?? {};
+    if (!token) return res.json({ ok: true });
+
+    await getDb()
+      .collection("users")
+      .updateOne({ _id: req.userId }, { $pull: { pushTokens: token } });
+
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

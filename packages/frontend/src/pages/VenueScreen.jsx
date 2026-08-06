@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import {
   SafeAreaView,
   View,
@@ -12,29 +12,37 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Users,
-  Clock,
-  Check,
-  X,
-  Store as StoreIcon,
-  Radio,
-  KeyRound,
-  ChartNoAxesColumn,
-  Tag,
-  TriangleAlert,
-  CreditCard,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import X from "lucide-react-native/dist/esm/icons/x";
+import StoreIcon from "lucide-react-native/dist/esm/icons/store";
+import Radio from "lucide-react-native/dist/esm/icons/radio";
+import KeyRound from "lucide-react-native/dist/esm/icons/key-round";
+import ChartNoAxesColumn from "lucide-react-native/dist/esm/icons/chart-no-axes-column";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import TriangleAlert from "lucide-react-native/dist/esm/icons/triangle-alert";
+import CreditCard from "lucide-react-native/dist/esm/icons/credit-card";
+import QrCode from "lucide-react-native/dist/esm/icons/qr-code";
+import QRCode from "react-native-qrcode-svg";
+import BadgeCheck from "lucide-react-native/dist/esm/icons/badge-check";
 
 import Avatar from "@/components/Avatar";
 import EmptyState from "@/components/EmptyState";
+import QrScanner from "@/components/QrScanner";
 import VenueBookingSheet from "./VenueBookingSheet";
+import { SocketContext } from "@/context/SocketContext";
 import { API_URL } from "@/constants/api";
-import { currentNightKey, formatNightKey, toDateKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./VenueScreen.styles";
+import {
+  currentNightKey,
+  formatClock,
+  formatNightKey,
+  toDateKey,
+} from "@/utils/format";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./VenueScreen.styles";
 
 const call = async (path, { method = "GET", body } = {}) => {
   const res = await fetch(`${API_URL}${path}`, {
@@ -50,12 +58,16 @@ const call = async (path, { method = "GET", body } = {}) => {
 };
 
 // What the venue tells the city about right now.
-const CROWD = [
+const CROWD = (T) => [
   { key: "quiet", label: "Ήσυχα", color: T.textMuted },
   { key: "filling", label: "Γεμίζει", color: T.accent },
   { key: "busy", label: "Γεμάτο", color: T.warning },
   { key: "packed", label: "Ουρά", color: T.danger },
 ];
+
+// How long a stamp card runs. Offered as taps rather than a number field so
+// setting it is one gesture and there is nothing to type wrong.
+const NIGHT_OPTIONS = [3, 4, 5, 6, 8, 10];
 
 // Move a day without a date picker: nights are always near.
 const shiftKey = (key, days) => {
@@ -67,7 +79,11 @@ const shiftKey = (key, days) => {
 // The venue's night: pending requests to answer, confirmed tables to seat, and
 // the two switches (live status, check-in code) that only matter tonight.
 export default function VenueScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
+  const socket = useContext(SocketContext);
 
   const [stores, setStores] = useState([]);
   const [storeId, setStoreId] = useState(null);
@@ -84,6 +100,9 @@ export default function VenueScreen() {
   const [offerUntil, setOfferUntil] = useState("23:00");
   const [offerBusy, setOfferBusy] = useState(false);
   const [redeemCode, setRedeemCode] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [redemptions, setRedemptions] = useState([]);
+  const [nightsBusy, setNightsBusy] = useState(false);
 
   useEffect(() => {
     call("/stores/mine")
@@ -99,12 +118,14 @@ export default function VenueScreen() {
     if (!storeId) return;
 
     try {
-      const [night, doorCode] = await Promise.all([
+      const [night, doorCode, redeemed] = await Promise.all([
         call(`/reservations/store/${storeId}?dateKey=${dateKey}`),
         call(`/stores/${storeId}/check-in-code`),
+        call(`/stores/${storeId}/offer/redemptions`).catch(() => []),
       ]);
       setSheet(night);
       setCode(doorCode);
+      setRedemptions(redeemed);
     } catch (err) {
       console.log(err.message);
     } finally {
@@ -171,18 +192,77 @@ export default function VenueScreen() {
     }
   };
 
-  const redeem = async () => {
+  // Newest scan first, and never the same claim twice — the socket echo and the
+  // HTTP answer both land for whoever did the scanning.
+  const rememberRedemption = (redemption) =>
+    setRedemptions((prev) => [
+      redemption,
+      ...prev.filter((r) => String(r._id) !== String(redemption._id)),
+    ]);
+
+  const setNights = async (stampsForReward) => {
+    setNightsBusy(true);
     try {
-      const { guest } = await call(`/stores/${storeId}/offer/redeem`, {
-        method: "POST",
-        body: { code: redeemCode.trim() },
+      const saved = await call(`/stores/${storeId}/loyalty`, {
+        method: "PUT",
+        body: { stampsForReward },
       });
-      setRedeemCode("");
-      Alert.alert("Ισχύει", `${guest?.username ?? "Ο πελάτης"} — δώσ' του την προσφορά.`);
+      setCode((prev) => (prev ? { ...prev, ...saved } : prev));
     } catch (err) {
+      Alert.alert("Δεν αποθηκεύτηκε", err.message);
+    } finally {
+      setNightsBusy(false);
+    }
+  };
+
+  // One path for every way a code arrives: the four characters typed at the
+  // bar, an offer QR, or a filled stamp card. The payload says which it is —
+  // an offer and a free drink are different collections with different rules,
+  // so they cannot share an endpoint.
+  const redeem = async (raw) => {
+    const value = String(raw ?? "").trim();
+    if (!value) return;
+
+    const isReward = value.toLowerCase().startsWith("vibely:reward:");
+    const path = isReward
+      ? `/stores/${storeId}/reward/redeem`
+      : `/stores/${storeId}/offer/redeem`;
+
+    try {
+      const { guest, redemption } = await call(path, {
+        method: "POST",
+        body: { code: value },
+      });
+
+      setRedeemCode("");
+      setScanning(false);
+      if (redemption) rememberRedemption(redemption);
+
+      Alert.alert(
+        "Ισχύει ✓",
+        isReward
+          ? `${guest?.username ?? "Ο πελάτης"} γέμισε την κάρτα — κέρασέ τον ${redemption?.offerTitle ?? "το ποτό"}.`
+          : `${guest?.username ?? "Ο πελάτης"} — δώσ' του την προσφορά.`,
+      );
+    } catch (err) {
+      setScanning(false);
       Alert.alert("Άκυρο", err.message);
     }
   };
+
+  // A second phone on the door scanning the same queue: both lists stay whole
+  // rather than each keeping only what it read itself.
+  useEffect(() => {
+    if (!socket) return undefined;
+
+    const onRedeemed = (redemption) => {
+      if (String(redemption?.store?._id) !== String(storeId)) return;
+      rememberRedemption(redemption);
+    };
+
+    socket.on("offer:redeemed:venue", onRedeemed);
+    return () => socket.off("offer:redeemed:venue", onRedeemed);
+  }, [socket, storeId]);
 
   // Swap the answered row in place — the sheet should not jump while the door
   // staff are working down it.
@@ -369,7 +449,7 @@ export default function VenueScreen() {
           </View>
 
           <View style={styles.crowdRow}>
-            {CROWD.map(({ key, label, color }) => {
+            {CROWD(T).map(({ key, label, color }) => {
               const active = store?.live?.crowd === key;
               return (
                 <Pressable
@@ -413,6 +493,17 @@ export default function VenueScreen() {
               </View>
 
               <View style={styles.offerRow}>
+                {/* The camera is the fast path — the guest holds their phone
+                    up and nobody reads four characters out loud. Typing stays
+                    for a cracked lens or a dead battery. */}
+                <Pressable
+                  style={styles.scanButton}
+                  onPress={() => setScanning(true)}
+                  hitSlop={6}
+                >
+                  <QrCode size={20} color={T.text} strokeWidth={2.2} />
+                </Pressable>
+
                 <TextInput
                   value={redeemCode}
                   onChangeText={setRedeemCode}
@@ -424,12 +515,43 @@ export default function VenueScreen() {
                 />
                 <Pressable
                   style={[styles.offerButton, styles.offerCheck]}
-                  onPress={redeem}
+                  onPress={() => redeem(redeemCode)}
                   disabled={redeemCode.trim().length !== 4}
                 >
                   <Text style={styles.offerButtonText}>Έλεγχος</Text>
                 </Pressable>
               </View>
+
+              {/* Who has already walked in on it. The door gets asked "did that
+                  one go through?" constantly, and the answer has to be on the
+                  same screen as the scanner. */}
+              {redemptions.length ? (
+                <View style={styles.redeemed}>
+                  <Text style={styles.redeemedTitle}>
+                    Πήραν την προσφορά ({redemptions.length})
+                  </Text>
+
+                  {redemptions.slice(0, 8).map((item) => (
+                    <View key={String(item._id)} style={styles.redeemedRow}>
+                      <Avatar
+                        uri={item.guest?.profileImageUrl}
+                        name={item.guest?.username}
+                        size={30}
+                      />
+
+                      <Text style={styles.redeemedName} numberOfLines={1}>
+                        {item.guest?.username ?? "Χρήστης"}
+                      </Text>
+
+                      <Text style={styles.redeemedCode}>{item.code}</Text>
+                      <BadgeCheck size={16} color={T.accent} strokeWidth={2.4} />
+                      <Text style={styles.redeemedTime}>
+                        {item.redeemedAt ? formatClock(item.redeemedAt) : ""}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
 
               <Pressable onPress={() => saveOffer(true)} disabled={offerBusy}>
                 <Text style={styles.offerClear}>Τερματισμός προσφοράς</Text>
@@ -479,24 +601,72 @@ export default function VenueScreen() {
           )}
         </View>
 
-        {/* ---- door code ---- */}
+        {/* ---- tonight's stamp QR ----
+             This is what a guest scans to get their stamp, so it is meant to be
+             left on screen at the till or printed and stuck on the tables. The
+             code underneath is the same thing for a guest whose camera is
+             broken. Both change on their own every night. */}
         {code?.enabled ? (
           <View style={styles.card}>
             <View style={styles.cardHead}>
               <KeyRound size={15} color={T.accent} strokeWidth={2.2} />
-              <Text style={styles.cardTitle}>Κωδικός βραδιάς</Text>
+              <Text style={styles.cardTitle}>QR βραδιάς</Text>
             </View>
 
+            <View style={styles.stampPlate}>
+              {code.qr ? (
+                <QRCode value={code.qr} size={190} backgroundColor="#fff" />
+              ) : null}
+            </View>
+
+            <Text style={styles.stampLead}>
+              Οι πελάτες το σκανάρουν για 1 σφραγίδα
+            </Text>
+
             <View style={styles.codeRow}>
-              <Text style={styles.code}>{code.code}</Text>
+              <View>
+                <Text style={styles.codeLabel}>Κωδικός</Text>
+                <Text style={styles.code}>{code.code}</Text>
+              </View>
+
               <View style={styles.codeMeta}>
                 <Text style={styles.codeCount}>{code.checkedIn}</Text>
-                <Text style={styles.codeLabel}>check-in απόψε</Text>
+                <Text style={styles.codeLabel}>σφραγίδες απόψε</Text>
               </View>
             </View>
 
+            {/* ---- how long the card is ---- */}
             <Text style={styles.cardHint}>
-              Δείξε τον στα τραπέζια. Αλλάζει μόνος του κάθε βράδυ.
+              Μετά από πόσες βραδιές κερδίζουν{" "}
+              {code.rewardLabel || "δωρεάν ποτό"};
+            </Text>
+
+            <View style={styles.nightsRow}>
+              {NIGHT_OPTIONS.map((n) => {
+                const active = (code.stampsForReward ?? 5) === n;
+
+                return (
+                  <Pressable
+                    key={n}
+                    style={[styles.nightsOption, active && styles.nightsOptionActive]}
+                    onPress={() => setNights(n)}
+                    disabled={nightsBusy}
+                  >
+                    <Text
+                      style={[
+                        styles.nightsOptionText,
+                        active && styles.nightsOptionTextActive,
+                      ]}
+                    >
+                      {n}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.cardHint}>
+              Οι κάρτες που έχουν ήδη γεμίσει δεν χαλάνε αν το αλλάξεις.
             </Text>
           </View>
         ) : null}
@@ -642,11 +812,20 @@ export default function VenueScreen() {
           load();
         }}
       />
+
+      <QrScanner
+        visible={scanning}
+        onClose={() => setScanning(false)}
+        onScan={redeem}
+        hint="Κράτα το QR του πελάτη μέσα στο πλαίσιο. Ο κωδικός καίγεται με το πρώτο σκανάρισμα."
+      />
     </SafeAreaView>
   );
 }
 
 function RequestHead({ reservation }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.requestHead}>
       <Avatar

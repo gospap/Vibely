@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Star } from "lucide-react-native";
-import { T } from "@/styles/theme";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 // Read-only by default. Pass onChange to turn it into the review input — the
 // same component then renders the tap targets for picking a score.
@@ -11,6 +11,8 @@ export default function RatingStars({
   onChange,
   showValue = true,
 }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const interactive = typeof onChange === "function";
 
   return (
@@ -51,7 +53,7 @@ export default function RatingStars({
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -65,4 +67,4 @@ const styles = StyleSheet.create({
     color: T.textMuted,
     fontWeight: "600",
   },
-});
+}));

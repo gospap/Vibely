@@ -9,15 +9,23 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { User, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react-native";
+import User from "lucide-react-native/dist/esm/icons/user";
+import Mail from "lucide-react-native/dist/esm/icons/mail";
+import Lock from "lucide-react-native/dist/esm/icons/lock";
+import Eye from "lucide-react-native/dist/esm/icons/eye";
+import EyeOff from "lucide-react-native/dist/esm/icons/eye-off";
+import ArrowRight from "lucide-react-native/dist/esm/icons/arrow-right";
 
-import styles from "./LoginScreen.styles";
+import styleSheet from "./LoginScreen.styles";
 import { AuthContext } from "@/context/AuthContext";
 import { Logo } from "@/components/Logo";
 import TriangleLoader from "@/components/TriangleLoader";
-import { T } from "@/styles/theme";
+import { useStyles, useTheme } from "@/styles/theme";
 
 export default function SignUpScreen({ navigation }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

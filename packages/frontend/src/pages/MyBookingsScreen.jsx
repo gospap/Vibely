@@ -11,13 +11,16 @@ import {
   Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { ChevronLeft, CalendarCheck, Users, Clock } from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
 
 import EmptyState from "@/components/EmptyState";
 import { API_URL } from "@/constants/api";
 import { formatNightKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./MyBookingsScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./MyBookingsScreen.styles";
 
 const call = async (path, { method = "GET" } = {}) => {
   const res = await fetch(`${API_URL}${path}`, { method, credentials: "include" });
@@ -27,18 +30,21 @@ const call = async (path, { method = "GET" } = {}) => {
 };
 
 // Every status the guest can see, with the colour that carries the meaning.
-const STATUS = {
+const STATUS = (T) => ({
   pending: { label: "Σε αναμονή", color: T.warning },
   confirmed: { label: "Επιβεβαιωμένη", color: T.accent },
   declined: { label: "Απορρίφθηκε", color: T.danger },
   cancelled: { label: "Ακυρώθηκε", color: T.textFaint },
   seated: { label: "Ήσουν εκεί", color: T.textMuted },
   no_show: { label: "Δεν εμφανίστηκες", color: T.danger },
-};
+});
 
 const CANCELLABLE = ["pending", "confirmed"];
 
 export default function MyBookingsScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [scope, setScope] = useState("upcoming");
@@ -180,7 +186,9 @@ export default function MyBookingsScreen() {
 }
 
 function BookingRow({ reservation, onCancel }) {
-  const status = STATUS[reservation.status] ?? STATUS.pending;
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+  const status = STATUS(T)[reservation.status] ?? STATUS(T).pending;
 
   return (
     <View style={styles.row}>

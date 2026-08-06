@@ -7,17 +7,22 @@ import {
   TextInput,
   Alert,
 } from "react-native";
-import { X, Users, Clock } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
 import { API_URL } from "@/constants/api";
 import { formatNightKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./VenueBookingSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./VenueBookingSheet.styles";
 
 // Answer one booking: give it a table, add a word back, or mark the door.
 export default function VenueBookingSheet({ reservation, onClose, onUpdated }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [tableLabel, setTableLabel] = useState("");
   const [responseNote, setResponseNote] = useState("");
   const [busy, setBusy] = useState(null);

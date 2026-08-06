@@ -23,7 +23,16 @@ export function SocketProvider({ children }) {
     // carries the same session cookie every fetch already sends, which is how
     // the server knows who is connecting. Forcing websocket-only would skip
     // that handshake and the socket would come up unauthenticated.
-    const connection = io(API_URL, { withCredentials: true });
+    const connection = io(API_URL, {
+      withCredentials: true,
+      // A phone loses the connection constantly — backgrounded, off WiFi, in a
+      // lift. The defaults give up after 5 tries, which on a night out means
+      // the app comes back with a dead socket and no way to know it.
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 5000,
+    });
 
     setSocket(connection);
 

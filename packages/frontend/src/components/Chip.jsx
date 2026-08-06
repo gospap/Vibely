@@ -1,7 +1,9 @@
 import { Text, Pressable, StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 export default function Chip({ label, active, onPress }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <Pressable
       onPress={onPress}
@@ -18,7 +20,7 @@ export default function Chip({ label, active, onPress }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -39,4 +41,4 @@ const styles = StyleSheet.create({
   labelActive: {
     color: "#fff",
   },
-});
+}));

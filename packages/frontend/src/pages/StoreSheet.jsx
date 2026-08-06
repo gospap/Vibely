@@ -11,20 +11,18 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import {
-  X,
-  Navigation2,
-  Bookmark,
-  Clock,
-  Phone,
-  Star,
-  CalendarPlus,
-  Gift,
-  Radio,
-  Tag,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Navigation2 from "lucide-react-native/dist/esm/icons/navigation-2";
+import Bookmark from "lucide-react-native/dist/esm/icons/bookmark";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Phone from "lucide-react-native/dist/esm/icons/phone";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import CalendarPlus from "lucide-react-native/dist/esm/icons/calendar-plus";
+import Gift from "lucide-react-native/dist/esm/icons/gift";
+import Radio from "lucide-react-native/dist/esm/icons/radio";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import Sparkles from "lucide-react-native/dist/esm/icons/sparkles";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
@@ -41,8 +39,8 @@ import {
   todayHours,
   formatDistance,
 } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./StoreSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./StoreSheet.styles";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -67,6 +65,9 @@ const CROWD_LABELS = {
 // Everything about one venue: photos, rating breakdown, reviews, tonight's
 // events and the button that hands the destination back to the map.
 export default function StoreSheet({ storeId, distanceKm, onClose, onNavigate }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [store, setStore] = useState(null);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);

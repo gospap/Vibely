@@ -16,24 +16,22 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import {
-  ArrowUp,
-  Crown,
-  Tag,
-  ChevronRight,
-  ArrowUpLeft,
-  ArrowUpRight,
-  Clock3,
-  CornerUpLeft,
-  CornerUpRight,
-  Crosshair,
-  MapPin,
-  Navigation as NavigationIcon,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-  X,
-} from "lucide-react-native";
+import ArrowUp from "lucide-react-native/dist/esm/icons/arrow-up";
+import Crown from "lucide-react-native/dist/esm/icons/crown";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right";
+import ArrowUpLeft from "lucide-react-native/dist/esm/icons/arrow-up-left";
+import ArrowUpRight from "lucide-react-native/dist/esm/icons/arrow-up-right";
+import Clock3 from "lucide-react-native/dist/esm/icons/clock-3";
+import CornerUpLeft from "lucide-react-native/dist/esm/icons/corner-up-left";
+import CornerUpRight from "lucide-react-native/dist/esm/icons/corner-up-right";
+import Crosshair from "lucide-react-native/dist/esm/icons/crosshair";
+import MapPin from "lucide-react-native/dist/esm/icons/map-pin";
+import NavigationIcon from "lucide-react-native/dist/esm/icons/navigation";
+import RotateCcw from "lucide-react-native/dist/esm/icons/rotate-ccw";
+import Volume2 from "lucide-react-native/dist/esm/icons/volume-2";
+import VolumeX from "lucide-react-native/dist/esm/icons/volume-x";
+import X from "lucide-react-native/dist/esm/icons/x";
 
 import StorePin from "@/components/StorePin";
 import SearchField from "@/components/SearchField";
@@ -42,8 +40,8 @@ import StoreSheet from "./StoreSheet";
 import { API_URL } from "@/constants/api";
 import { CATEGORIES } from "@/constants/categories";
 import { toQuery } from "@/utils/query";
-import { T } from "@/styles/theme";
-import styles from "./HomeScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./HomeScreen.styles";
 import {
   extractSteps,
   formatDistance,
@@ -87,6 +85,9 @@ const MANEUVER_ICONS = {
 };
 
 export default function HomeScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const mapRef = useRef(null);
   const navigation = useNavigation();
   const route = useRoute();

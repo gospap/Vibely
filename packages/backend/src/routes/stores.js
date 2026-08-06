@@ -4,6 +4,8 @@ const { ObjectId } = require("mongodb");
 const { getDb } = require("../../db");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
 const { entitlement } = require("../utils/trial");
+const { emitToUser } = require("../realtime");
+const { pushToUser } = require("../utils/push");
 const {
   normalizeText,
   haversineKm,
@@ -20,6 +22,10 @@ const router = express.Router();
 const badId = (res) => res.status(400).json({ message: "Invalid store id" });
 
 const CROWD_LEVELS = ["quiet", "filling", "busy", "packed"];
+
+// Nights on a card when the venue has not said otherwise. Each venue sets its
+// own from the Μαγαζί screen.
+const DEFAULT_STAMPS = 5;
 
 // Statuses that hold a seat. A pending request has not been given a table yet,
 // so it does not count against the night's capacity.
@@ -182,11 +188,121 @@ const checkInCode = (storeId, dateKey) =>
       .readUInt32BE(0) % 10000,
   ).padStart(4, "0");
 
+// What the guest's phone shows the door, and what the door shows the guest.
+// Namespaced so a code from one flow can never be read as another's.
+const stampQr = (storeId, dateKey) =>
+  `vibely:stamp:${storeId}:${checkInCode(storeId, dateKey)}`;
+
+// Reward codes are minted, not derived: they have to survive until the guest
+// turns up to spend them, which may be weeks after the night that earned them.
+const rewardCode = () =>
+  crypto.randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
+
+/**
+ * Give the guest tonight's stamp, and mint a free drink if that filled a card.
+ *
+ * Shared by the QR scan and the typed-code fallback so the two can never drift
+ * into stamping differently.
+ */
+async function recordStamp(store, userId, givenCode) {
+  const db = getDb();
+  const storeId = store._id;
+
+  if (!store.loyalty?.enabled) {
+    return { error: 403, message: "Το μαγαζί δεν έχει κάρτα πόντων" };
+  }
+
+  const dateKey = currentNightKey();
+  const expected = checkInCode(storeId, dateKey);
+  const given = String(givenCode ?? "").trim();
+
+  // Compared in constant time so the four digits cannot be narrowed down by
+  // timing a wrong guess. Lengths are checked first because timingSafeEqual
+  // throws on a mismatch.
+  const correct =
+    given.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+
+  if (!correct) return { error: 400, message: "Λάθος κωδικός" };
+
+  const already = await db
+    .collection("checkins")
+    .countDocuments({ user: userId, store: storeId, dateKey }, { limit: 1 });
+
+  try {
+    await db.collection("checkins").updateOne(
+      { user: userId, store: storeId, dateKey },
+      {
+        $setOnInsert: {
+          user: userId,
+          store: storeId,
+          dateKey,
+          source: "code",
+          reservation: null,
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+  } catch (err) {
+    // Two taps racing for the same unique key. The stamp is there either way,
+    // which is the outcome we wanted, so this is not a failure.
+    if (err.code !== 11000) throw err;
+  }
+
+  const card = await loyaltyCard(storeId, userId, store);
+  const reward = await mintReward(store, userId, card);
+
+  return { card, reward, alreadyStamped: !!already };
+}
+
+/**
+ * One free drink per completed card.
+ *
+ * `cycle` is which card was filled — the first five nights are cycle 1, the
+ * next five cycle 2 — and it is part of the unique index, so scanning again on
+ * the same night cannot mint a second coupon for the same card.
+ */
+async function mintReward(store, userId, card) {
+  const target = card.stampsForReward;
+  if (!target || card.stamps < target) return null;
+
+  const cycle = Math.floor(card.stamps / target);
+  const rewards = getDb().collection("rewards");
+
+  const existing = await rewards.findOne({
+    user: userId,
+    store: store._id,
+    cycle,
+  });
+  if (existing) return existing.redeemed ? null : existing;
+
+  const doc = {
+    user: userId,
+    store: store._id,
+    cycle,
+    code: rewardCode(),
+    rewardLabel: store.loyalty?.rewardLabel || "Δωρεάν ποτό",
+    redeemed: false,
+    redeemedAt: null,
+    createdAt: new Date(),
+  };
+
+  try {
+    await rewards.insertOne(doc);
+    return doc;
+  } catch (err) {
+    // Lost a race with another scan; the coupon exists either way.
+    if (err.code !== 11000) throw err;
+    return rewards.findOne({ user: userId, store: store._id, cycle });
+  }
+}
+
 // Vibely counts visits; it does not track redemption. `rewardsEarned` is how
 // many full cards the guest has filled, and settling up stays between them and
 // the venue.
 async function loyaltyCard(storeId, userId, store) {
-  const target = store.loyalty?.stampsForReward ?? 6;
+  const target = store.loyalty?.stampsForReward ?? DEFAULT_STAMPS;
   const checkins = getDb().collection("checkins");
   const id = new ObjectId(storeId);
 
@@ -847,7 +963,8 @@ router.post("/:id/offer/claim", requireAuth, async (req, res) => {
 
 /* =========================
    POST /stores/:id/offer/redeem
-   The bar types the guest's code to check it and mark it used.
+   The door scans the guest's QR — or types the code when there is no camera —
+   to check it and burn it.
 ========================= */
 router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
   try {
@@ -862,12 +979,16 @@ router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
     const raw = String(req.body.code ?? "").trim();
     let code = raw.toUpperCase();
 
-    if (raw.startsWith("vibely:offer:")) {
+    if (raw.toLowerCase().startsWith("vibely:offer:")) {
       const [, , qrStore, qrCode] = raw.split(":");
       if (qrStore !== store._id.toString()) {
         return res.status(404).json({ message: "Κωδικός άλλου μαγαζιού" });
       }
       code = String(qrCode ?? "").toUpperCase();
+    } else if (raw.includes(":")) {
+      // Some other app's QR. Salvaging characters out of it would be a way to
+      // guess a four-letter code, so it is refused outright.
+      return res.status(404).json({ message: "Άκυρος κωδικός" });
     }
 
     // Scoped to the offer currently on, so a code from an earlier offer the
@@ -880,25 +1001,133 @@ router.post("/:id/offer/redeem", requireAuth, async (req, res) => {
       return res.status(404).json({ message: "Δεν τρέχει προσφορά τώρα" });
     }
 
-    const claim = await db.collection("offerclaims").findOne({
-      offer: current.offer.id,
-      code,
-    });
+    const redeemedAt = new Date();
 
-    if (!claim) return res.status(404).json({ message: "Άκυρος κωδικός" });
-    if (claim.redeemed) {
-      return res.status(409).json({ message: "Έχει ήδη χρησιμοποιηθεί" });
+    // One atomic step rather than find-then-update: two staff scanning the same
+    // code at the same moment would both pass a separate `redeemed` check, and
+    // a code that can be walked in on twice is the whole thing this guards.
+    // Whoever loses the race matches nothing and gets the 409 below.
+    const claim = await db.collection("offerclaims").findOneAndUpdate(
+      { offer: current.offer.id, code, redeemed: false },
+      {
+        $set: { redeemed: true, redeemedAt, redeemedBy: req.userId },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!claim) {
+      // Tell the door *why* it failed: a code that was already used is a very
+      // different conversation with the guest than one that never existed.
+      const exists = await db
+        .collection("offerclaims")
+        .findOne(
+          { offer: current.offer.id, code },
+          { projection: { redeemedAt: 1 } },
+        );
+
+      if (exists) {
+        return res.status(409).json({
+          message: "Έχει ήδη χρησιμοποιηθεί",
+          redeemedAt: exists.redeemedAt ?? null,
+        });
+      }
+
+      return res.status(404).json({ message: "Άκυρος κωδικός" });
     }
-
-    await db
-      .collection("offerclaims")
-      .updateOne({ _id: claim._id }, { $set: { redeemed: true, redeemedAt: new Date() } });
 
     const guest = await db
       .collection("users")
-      .findOne({ _id: claim.user }, { projection: { username: 1, profileImageUrl: 1 } });
+      .findOne(
+        { _id: claim.user },
+        { projection: { username: 1, profileImageUrl: 1 } },
+      );
 
-    res.json({ ok: true, guest });
+    const redemption = {
+      _id: claim._id,
+      code: claim.code,
+      redeemedAt,
+      offerTitle: current.offer.title ?? null,
+      store: { _id: store._id, name: store.name },
+      guest: guest
+        ? {
+            _id: guest._id,
+            username: guest.username,
+            profileImageUrl: guest.profileImageUrl ?? null,
+          }
+        : null,
+    };
+
+    // The guest's wallet turns the code into a green tick without them pulling
+    // to refresh — they are standing at the bar holding the phone up.
+    emitToUser(claim.user, "offer:redeemed", redemption);
+
+    // And the venue's own screen, so a second phone on the door sees the same
+    // scan land rather than each one keeping its own half of the list.
+    if (store.owner) emitToUser(store.owner, "offer:redeemed:venue", redemption);
+
+    pushToUser(
+      claim.user,
+      {
+        title: store.name,
+        body: `Η προσφορά σου εξαργυρώθηκε${
+          current.offer.title ? ` — ${current.offer.title}` : ""
+        }`,
+        data: { type: "offer-redeemed", storeId: store._id.toString() },
+      },
+      { pref: "notifications.push" },
+    ).catch((err) => console.error("Redeem push failed", err.message));
+
+    res.json({ ok: true, guest, redemption });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   GET /stores/:id/offer/redemptions
+   Who has walked in on tonight's offer. The door needs to be able to look back
+   at the last scan — "did that go through?" is asked constantly.
+========================= */
+router.get("/:id/offer/redemptions", requireAuth, async (req, res) => {
+  try {
+    const store = await ownedStore(req.params.id, req);
+    if (!store) return res.status(403).json({ message: "Not your store" });
+
+    const db = getDb();
+
+    const current = await db
+      .collection("stores")
+      .findOne({ _id: store._id }, { projection: { offer: 1 } });
+
+    if (!current?.offer?.id) return res.json([]);
+
+    const claims = await db
+      .collection("offerclaims")
+      .find({ offer: current.offer.id, redeemed: true })
+      .sort({ redeemedAt: -1 })
+      .limit(50)
+      .toArray();
+
+    if (!claims.length) return res.json([]);
+
+    const guests = await db
+      .collection("users")
+      .find({ _id: { $in: [...new Set(claims.map((c) => c.user))] } })
+      .project({ username: 1, profileImageUrl: 1 })
+      .toArray();
+
+    const byId = new Map(guests.map((g) => [g._id.toString(), g]));
+
+    res.json(
+      claims.map((claim) => ({
+        _id: claim._id,
+        code: claim.code,
+        redeemedAt: claim.redeemedAt ?? null,
+        offerTitle: current.offer.title ?? null,
+        guest: byId.get(claim.user.toString()) ?? null,
+      })),
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
@@ -977,7 +1206,12 @@ router.get("/:id/check-in-code", requireAuth, async (req, res) => {
     res.json({
       dateKey,
       code: checkInCode(store._id, dateKey),
+      // What the guest points a camera at. Rebuilt every night off the same
+      // rotating code, so a photo of it is useless tomorrow.
+      qr: stampQr(store._id, dateKey),
       enabled: !!store.loyalty?.enabled,
+      stampsForReward: store.loyalty?.stampsForReward ?? DEFAULT_STAMPS,
+      rewardLabel: store.loyalty?.rewardLabel ?? null,
       checkedIn: await getDb()
         .collection("checkins")
         .countDocuments({ store: store._id, dateKey }),
@@ -989,8 +1223,57 @@ router.get("/:id/check-in-code", requireAuth, async (req, res) => {
 });
 
 /* =========================
+   POST /stores/stamp
+   The guest scans the venue's QR and earns the night's stamp.
+
+   The payload carries the venue, so the phone does not have to know which bar
+   it is standing in — point the camera and that is the whole interaction. The
+   code inside still has to match tonight's, so a screenshot of last night's QR
+   is worthless.
+
+   Declared before /:id/... so "stamp" is never read as a store id.
+========================= */
+router.post("/stamp", requireAuth, async (req, res) => {
+  try {
+    const raw = String(req.body.payload ?? req.body.code ?? "").trim();
+
+    if (!raw.toLowerCase().startsWith("vibely:stamp:")) {
+      return res.status(400).json({
+        message: "Αυτό δεν είναι QR της Vibely. Ζήτα το QR του μαγαζιού.",
+      });
+    }
+
+    const [, , storeId, code] = raw.split(":");
+    if (!ObjectId.isValid(storeId)) return badId(res);
+
+    const store = await getDb()
+      .collection("stores")
+      .findOne(
+        { _id: new ObjectId(storeId) },
+        { projection: { loyalty: 1, name: 1, images: 1 } },
+      );
+
+    if (!store) return res.status(404).json({ message: "Store not found" });
+
+    const result = await recordStamp(store, req.userId, code);
+    if (result.error) {
+      return res.status(result.error).json({ message: result.message });
+    }
+
+    res.status(201).json({
+      store: { _id: store._id, name: store.name, image: store.images?.[0] },
+      ...result,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
    POST /stores/:id/check-in
-   Guest types tonight's code and earns the night's stamp.
+   Guest types tonight's code and earns the night's stamp. Same thing the QR
+   does, for a dead camera or a cracked lens.
 ========================= */
 router.post("/:id/check-in", requireAuth, async (req, res) => {
   try {
@@ -1006,47 +1289,160 @@ router.post("/:id/check-in", requireAuth, async (req, res) => {
 
     if (!store) return res.status(404).json({ message: "Store not found" });
 
-    if (!store.loyalty?.enabled) {
-      return res
-        .status(403)
-        .json({ message: "Το μαγαζί δεν έχει κάρτα πόντων" });
+    const result = await recordStamp(store, req.userId, req.body.code);
+    if (result.error) {
+      return res.status(result.error).json({ message: result.message });
     }
 
-    const dateKey = currentNightKey();
-    const expected = checkInCode(id, dateKey);
-    const given = String(req.body.code ?? "").trim();
+    res.status(201).json({ ...result.card, reward: result.reward ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
-    // Compared in constant time so the four digits cannot be narrowed down by
-    // timing a wrong guess. Lengths are checked first because timingSafeEqual
-    // throws on a mismatch.
-    const correct =
-      given.length === expected.length &&
-      crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+/* =========================
+   PUT /stores/:id/loyalty
+   The venue sets its own card: how many nights buys what.
 
-    if (!correct) return res.status(400).json({ message: "Λάθος κωδικός" });
+   Changing the target does not disturb cards already filled — `cycle` is
+   computed from the count at the time a coupon was minted, and a coupon that
+   has been handed out stays valid whatever the venue does next.
+========================= */
+router.put("/:id/loyalty", requireAuth, async (req, res) => {
+  try {
+    const store = await ownedStore(req.params.id, req);
+    if (!store) return res.status(403).json({ message: "Not your store" });
 
-    try {
-      await db.collection("checkins").updateOne(
-        { user: req.userId, store: storeId, dateKey },
-        {
-          $setOnInsert: {
-            user: req.userId,
-            store: storeId,
-            dateKey,
-            source: "code",
-            reservation: null,
-            createdAt: new Date(),
-          },
-        },
-        { upsert: true },
+    const update = {};
+
+    if (req.body.enabled !== undefined) {
+      update["loyalty.enabled"] = !!req.body.enabled;
+    }
+
+    if (req.body.stampsForReward !== undefined) {
+      const nights = parseNumber(req.body.stampsForReward);
+      // Below 2 it is not a card, and past 20 nobody ever finishes one.
+      if (nights == null || nights < 2 || nights > 20) {
+        return res
+          .status(400)
+          .json({ message: "Οι βραδιές πρέπει να είναι 2 έως 20" });
+      }
+      update["loyalty.stampsForReward"] = nights;
+    }
+
+    if (req.body.rewardLabel !== undefined) {
+      update["loyalty.rewardLabel"] =
+        String(req.body.rewardLabel).trim().slice(0, 60) || null;
+    }
+
+    if (!Object.keys(update).length) {
+      return res.status(400).json({ message: "Τίποτα προς αλλαγή" });
+    }
+
+    const updated = await getDb()
+      .collection("stores")
+      .findOneAndUpdate(
+        { _id: store._id },
+        { $set: update },
+        { returnDocument: "after", projection: { loyalty: 1 } },
       );
-    } catch (err) {
-      // Two taps racing for the same unique key. The stamp is there either
-      // way, which is the outcome we wanted, so this is not a failure.
-      if (err.code !== 11000) throw err;
+
+    res.json({
+      enabled: !!updated?.loyalty?.enabled,
+      stampsForReward: updated?.loyalty?.stampsForReward ?? DEFAULT_STAMPS,
+      rewardLabel: updated?.loyalty?.rewardLabel ?? null,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* =========================
+   POST /stores/:id/reward/redeem
+   The door scans a filled card and pours the drink. One shot.
+========================= */
+router.post("/:id/reward/redeem", requireAuth, async (req, res) => {
+  try {
+    const store = await ownedStore(req.params.id, req);
+    if (!store) return res.status(403).json({ message: "Not your store" });
+
+    const db = getDb();
+    const raw = String(req.body.code ?? "").trim();
+    let code = raw.toUpperCase();
+
+    if (raw.toLowerCase().startsWith("vibely:reward:")) {
+      const [, , qrStore, qrCode] = raw.split(":");
+      if (qrStore !== store._id.toString()) {
+        return res.status(404).json({ message: "Κουπόνι άλλου μαγαζιού" });
+      }
+      code = String(qrCode ?? "").toUpperCase();
+    } else if (raw.includes(":")) {
+      return res.status(404).json({ message: "Άκυρο κουπόνι" });
     }
 
-    res.status(201).json(await loyaltyCard(storeId, req.userId, store));
+    const redeemedAt = new Date();
+
+    // Atomic, for the same reason the offer redemption is: two staff scanning
+    // the same coupon at once must not both pour.
+    const reward = await db.collection("rewards").findOneAndUpdate(
+      { store: store._id, code, redeemed: false },
+      { $set: { redeemed: true, redeemedAt, redeemedBy: req.userId } },
+      { returnDocument: "after" },
+    );
+
+    if (!reward) {
+      const spent = await db
+        .collection("rewards")
+        .findOne({ store: store._id, code }, { projection: { redeemedAt: 1 } });
+
+      if (spent) {
+        return res.status(409).json({
+          message: "Έχει ήδη εξαργυρωθεί",
+          redeemedAt: spent.redeemedAt ?? null,
+        });
+      }
+      return res.status(404).json({ message: "Άκυρο κουπόνι" });
+    }
+
+    const guest = await db
+      .collection("users")
+      .findOne(
+        { _id: reward.user },
+        { projection: { username: 1, profileImageUrl: 1 } },
+      );
+
+    const redemption = {
+      _id: reward._id,
+      kind: "reward",
+      code: reward.code,
+      redeemedAt,
+      offerTitle: reward.rewardLabel,
+      store: { _id: store._id, name: store.name },
+      guest: guest
+        ? {
+            _id: guest._id,
+            username: guest.username,
+            profileImageUrl: guest.profileImageUrl ?? null,
+          }
+        : null,
+    };
+
+    emitToUser(reward.user, "reward:redeemed", redemption);
+    if (store.owner) emitToUser(store.owner, "offer:redeemed:venue", redemption);
+
+    pushToUser(
+      reward.user,
+      {
+        title: store.name,
+        body: `Το κουπόνι σου εξαργυρώθηκε — ${reward.rewardLabel}`,
+        data: { type: "reward-redeemed", storeId: store._id.toString() },
+      },
+      { pref: "notifications.push" },
+    ).catch((err) => console.error("Reward push failed", err.message));
+
+    res.json({ ok: true, guest, redemption });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });

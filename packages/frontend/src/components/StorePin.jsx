@@ -1,5 +1,6 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
-import { Star, Sparkles } from "lucide-react-native";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import Sparkles from "lucide-react-native/dist/esm/icons/sparkles";
 
 // Paid placement is marked, never disguised: a promoted pin is bigger and gold,
 // and carries a label saying so.

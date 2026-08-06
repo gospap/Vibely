@@ -11,14 +11,12 @@ import {
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { BlurView } from "expo-blur";
-import {
-  House,
-  CalendarDays,
-  Users,
-  User,
-  Store,
-  CalendarCheck,
-} from "lucide-react-native";
+import House from "lucide-react-native/dist/esm/icons/house";
+import CalendarDays from "lucide-react-native/dist/esm/icons/calendar-days";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import User from "lucide-react-native/dist/esm/icons/user";
+import Store from "lucide-react-native/dist/esm/icons/store";
+import CalendarCheck from "lucide-react-native/dist/esm/icons/calendar-check";
 
 import HomeScreen from "@/pages/HomeScreen";
 import EventsScreen from "@/pages/EventsScreen";
@@ -32,8 +30,11 @@ import VenueScreen from "@/pages/VenueScreen";
 import VenueReservationsScreen from "@/pages/VenueReservationsScreen";
 import VenueAnalyticsScreen from "@/pages/VenueAnalyticsScreen";
 import WalletScreen from "@/pages/WalletScreen";
+import CouponsScreen from "@/pages/CouponsScreen";
 import BillingScreen from "@/pages/BillingScreen";
 import { AuthContext } from "@/context/AuthContext";
+import { MessagesContext } from "@/context/MessagesContext";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -63,7 +64,10 @@ const SCREENS = {
   Profile: ProfileScreen,
 };
 
-function LiquidGlassTabBar({ state, navigation, tabs }) {
+function LiquidGlassTabBar({ state, navigation, tabs, badges }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const tabLayouts = useRef({});
   const pillX = useRef(new Animated.Value(0)).current;
   const pillW = useRef(new Animated.Value(60)).current;
@@ -132,7 +136,7 @@ function LiquidGlassTabBar({ state, navigation, tabs }) {
 
   return (
     <View style={styles.wrapper} pointerEvents="box-none">
-      <BlurView intensity={60} tint="dark" style={styles.bar}>
+      <BlurView intensity={60} tint={T.glassTint} style={styles.bar}>
         <View style={styles.glassOverlay} />
 
         {/* Sliding pill — rendered UNDER the tabs */}
@@ -147,6 +151,7 @@ function LiquidGlassTabBar({ state, navigation, tabs }) {
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
           const { Icon, label } = tabs[index];
+          const badge = badges?.[route.name] ?? 0;
 
           return (
             <Animated.View
@@ -162,11 +167,24 @@ function LiquidGlassTabBar({ state, navigation, tabs }) {
                 activeOpacity={0.8}
                 style={styles.tabItem}
               >
-                <Icon
-                  size={22}
-                  color={isFocused ? "#ffffff" : "rgba(255,255,255,0.4)"}
-                  strokeWidth={isFocused ? 2.2 : 1.7}
-                />
+                <View>
+                  <Icon
+                    size={22}
+                    color={isFocused ? T.glassTextActive : T.glassIcon}
+                    strokeWidth={isFocused ? 2.2 : 1.7}
+                  />
+
+                  {/* Unread messages have to be visible from the map, not only
+                      from inside the thread they arrived in. */}
+                  {badge > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>
+                        {badge > 99 ? "99+" : badge}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
                 <Text style={[styles.label, isFocused && styles.labelActive]}>
                   {label}
                 </Text>
@@ -179,7 +197,7 @@ function LiquidGlassTabBar({ state, navigation, tabs }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   wrapper: {
     position: "absolute",
     bottom: 15,
@@ -197,14 +215,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.16)",
-    backgroundColor: "rgba(10, 15, 28, 0.45)",
+    borderColor: T.glassBorder,
+    backgroundColor: T.glassBg,
   },
   glassOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: T.glassPill,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.16)",
+    borderTopColor: T.glassBorder,
     borderRadius: 35,
     pointerEvents: "none",
   },
@@ -220,8 +238,8 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
-    backgroundColor: "rgba(255,255,255,0.16)",
+    borderColor: T.glassBorder,
+    backgroundColor: T.glassPill,
   },
   tabItem: {
     alignItems: "center",
@@ -235,21 +253,46 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 10,
     fontWeight: "600",
-    color: "rgba(255,255,255,0.62)",
+    color: T.glassText,
     letterSpacing: 0.2,
   },
   labelActive: {
-    color: "#ffffff",
+    color: T.glassTextActive,
   },
-});
+
+  badge: {
+    position: "absolute",
+    top: -5,
+    left: 12,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: T.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+}));
 
 function TabsNavigator() {
   const { user } = useContext(AuthContext);
+  const { unread } = useContext(MessagesContext);
   const tabs = user?.type === "tenant" ? TENANT_TABS : TABS;
 
   return (
     <Tab.Navigator
-      tabBar={(props) => <LiquidGlassTabBar {...props} tabs={tabs} />}
+      tabBar={(props) => (
+        <LiquidGlassTabBar
+          {...props}
+          tabs={tabs}
+          badges={{ Community: unread }}
+        />
+      )}
       screenOptions={{
         headerShown: false,
         contentStyle: { paddingBottom: 110 },
@@ -274,6 +317,7 @@ export default function AppNavigator() {
       <Stack.Screen name="VenueAnalytics" component={VenueAnalyticsScreen} />
       <Stack.Screen name="Offers" component={OffersScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="Coupons" component={CouponsScreen} />
       <Stack.Screen name="Billing" component={BillingScreen} />
     </Stack.Navigator>
   );

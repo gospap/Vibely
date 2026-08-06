@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState } from "react";
 import { API_URL } from "../constants/api";
+import { unregisterPushToken } from "../utils/push";
 
 export const AuthContext = createContext();
 
@@ -70,6 +71,11 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     try {
+      // Before the session goes: the API needs the cookie to know whose device
+      // this is, and a token left behind would keep notifying a phone that has
+      // signed out.
+      await unregisterPushToken();
+
       const res = await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
         credentials: "include",

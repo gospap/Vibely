@@ -9,7 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { CalendarX, Users } from "lucide-react-native";
+import CalendarX from "lucide-react-native/dist/esm/icons/calendar-x";
+import Users from "lucide-react-native/dist/esm/icons/users";
 
 import SearchField from "@/components/SearchField";
 import Chip from "@/components/Chip";
@@ -19,12 +20,15 @@ import EventSheet from "./EventSheet";
 import { API_URL } from "@/constants/api";
 import { toQuery } from "@/utils/query";
 import { formatEventDate, formatPrice } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./EventsScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./EventsScreen.styles";
 
 const PAGE_SIZE = 10;
 
 export default function EventsScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const [events, setEvents] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);

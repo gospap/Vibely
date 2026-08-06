@@ -12,19 +12,17 @@ import {
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as WebBrowser from "expo-web-browser";
-import {
-  ChevronLeft,
-  CreditCard,
-  TriangleAlert,
-  Check,
-  Clock,
-  ReceiptText,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import CreditCard from "lucide-react-native/dist/esm/icons/credit-card";
+import TriangleAlert from "lucide-react-native/dist/esm/icons/triangle-alert";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import ReceiptText from "lucide-react-native/dist/esm/icons/receipt-text";
 
 import { API_URL } from "@/constants/api";
 import { formatFullDate } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./BillingScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./BillingScreen.styles";
 
 const call = async (path, { method = "GET" } = {}) => {
   const res = await fetch(`${API_URL}${path}`, { method, credentials: "include" });
@@ -35,7 +33,7 @@ const call = async (path, { method = "GET" } = {}) => {
 
 // How each subscription state reads to the venue. The lapsed one says what it
 // actually costs them — "not visible on the map" lands harder than "inactive".
-const STATE = {
+const STATE = (T) => ({
   trial: {
     tone: T.warning,
     Icon: Clock,
@@ -72,16 +70,22 @@ const STATE = {
       "Χωρίς συνδρομή το μαγαζί δεν εμφανίζεται και δεν δέχεται νέες κρατήσεις. Οι υπάρχουσες κρατήσεις ισχύουν κανονικά.",
     action: "Ενεργοποίηση συνδρομής",
   },
-};
+});
 
 const stateOf = (sub) => {
-  if (sub.onTrial) return "trial";
+  // A paid subscription outranks a trial that has not run out yet — a venue
+  // that has already bought must never be shown a "subscribe" button.
   if (sub.plan === "past_due") return "past_due";
+  if (sub.hasSubscription && sub.entitled) return "active";
+  if (sub.onTrial) return "trial";
   if (sub.entitled) return "active";
   return "lapsed";
 };
 
 export default function BillingScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [venues, setVenues] = useState([]);
@@ -167,7 +171,7 @@ export default function BillingScreen() {
 
           {venues.map(({ store, ...sub }) => {
             const key = stateOf(sub);
-            const { tone, Icon, title, detail, action } = STATE[key];
+            const { tone, Icon, title, detail, action } = STATE(T)[key];
 
             return (
               <View key={store._id} style={styles.card}>

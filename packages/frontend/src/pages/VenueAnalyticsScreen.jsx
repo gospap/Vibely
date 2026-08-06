@@ -8,20 +8,18 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {
-  ChevronLeft,
-  Bookmark,
-  Star,
-  CalendarDays,
-  UserCheck,
-  Repeat,
-  Lock,
-} from "lucide-react-native";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
+import Bookmark from "lucide-react-native/dist/esm/icons/bookmark";
+import Star from "lucide-react-native/dist/esm/icons/star";
+import CalendarDays from "lucide-react-native/dist/esm/icons/calendar-days";
+import UserCheck from "lucide-react-native/dist/esm/icons/user-check";
+import Repeat from "lucide-react-native/dist/esm/icons/repeat";
+import Lock from "lucide-react-native/dist/esm/icons/lock";
 
 import { API_URL } from "@/constants/api";
 import { formatNightKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./VenueAnalyticsScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./VenueAnalyticsScreen.styles";
 
 const call = async (path) => {
   const res = await fetch(`${API_URL}${path}`, { credentials: "include" });
@@ -44,6 +42,9 @@ const GENDER_LABELS = {
 };
 
 export default function VenueAnalyticsScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [stores, setStores] = useState([]);
@@ -285,6 +286,8 @@ export default function VenueAnalyticsScreen() {
 }
 
 function Stat({ value, label, Icon, tone }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.stat}>
       {Icon ? <Icon size={14} color={tone ?? T.textMuted} strokeWidth={2.2} /> : null}
@@ -299,6 +302,7 @@ function Stat({ value, label, Icon, tone }) {
 // A rate of null means there was nothing to divide by, which is different from
 // zero — say so rather than showing a confident 0%.
 function Rate({ value, label, tone }) {
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.rate}>
       <Text style={[styles.rateValue, tone && { color: tone }]}>
@@ -310,6 +314,8 @@ function Rate({ value, label, tone }) {
 }
 
 function Bar({ label, count, total, tone, suffix = "" }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const pct = total ? (count / total) * 100 : 0;
 
   return (

@@ -1,7 +1,6 @@
-import { StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles } from "@/styles/theme";
 
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   container: { flex: 1 },
   map: { flex: 1 },
 
@@ -236,4 +235,4 @@ export default StyleSheet.create({
     alignItems: "center",
     elevation: 5,
   },
-});
+}));

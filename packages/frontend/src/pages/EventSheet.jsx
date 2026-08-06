@@ -10,16 +10,14 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import {
-  X,
-  Clock,
-  Disc3,
-  MapPin,
-  Ticket,
-  Users,
-  Check,
-  CalendarPlus,
-} from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Disc3 from "lucide-react-native/dist/esm/icons/disc-3";
+import MapPin from "lucide-react-native/dist/esm/icons/map-pin";
+import Ticket from "lucide-react-native/dist/esm/icons/ticket";
+import Users from "lucide-react-native/dist/esm/icons/users";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import CalendarPlus from "lucide-react-native/dist/esm/icons/calendar-plus";
 
 import Avatar from "@/components/Avatar";
 import Button from "@/components/Button";
@@ -27,12 +25,15 @@ import RatingStars from "@/components/RatingStars";
 import BookingSheet from "./BookingSheet";
 import { API_URL } from "@/constants/api";
 import { formatFullDate, formatPrice, toDateKey } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./EventSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./EventSheet.styles";
 
 // Bottom sheet for one event: full details, the host store with its rating, who
 // is going, and the join button.
 export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [event, setEvent] = useState(null);
@@ -261,6 +262,8 @@ export default function EventSheet({ eventId, onClose, onAttendanceChange }) {
 }
 
 function Fact({ Icon, label, value }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <View style={styles.fact}>
       <Icon size={15} color={T.textMuted} strokeWidth={2} />

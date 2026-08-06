@@ -9,7 +9,12 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { X, Minus, Plus, Check, Clock, Users } from "lucide-react-native";
+import X from "lucide-react-native/dist/esm/icons/x";
+import Minus from "lucide-react-native/dist/esm/icons/minus";
+import Plus from "lucide-react-native/dist/esm/icons/plus";
+import Check from "lucide-react-native/dist/esm/icons/check";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Users from "lucide-react-native/dist/esm/icons/users";
 
 import Button from "@/components/Button";
 import { AuthContext } from "@/context/AuthContext";
@@ -20,8 +25,8 @@ import {
   nextNights,
   toDateKey,
 } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./BookingSheet.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./BookingSheet.styles";
 
 // Session cookie or the API treats every call as a stranger.
 const call = async (path, { method = "GET", body } = {}) => {
@@ -47,6 +52,9 @@ export default function BookingSheet({
   onClose,
   onBooked,
 }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const { user } = useContext(AuthContext);
 
   const [dateKey, setDateKey] = useState(
@@ -338,6 +346,8 @@ export default function BookingSheet({
 // A pending request and a confirmed table are very different outcomes, so the
 // sheet says which one happened instead of just closing.
 function Confirmation({ reservation, onClose }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const confirmed = reservation.status === "confirmed";
 
   return (

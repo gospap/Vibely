@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import Avatar from "./Avatar";
-import { T } from "@/styles/theme";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 // One row in the people list. `relation` decides which action it offers, so the
 // search results, the request inbox and the friends list all reuse this.
@@ -15,6 +15,8 @@ export default function UserRow({
   busy = false,
   subtitle,
 }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   const labels = {
     none: "Προσθήκη",
     requested: "Σε αναμονή",
@@ -81,7 +83,7 @@ export default function UserRow({
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -125,4 +127,4 @@ const styles = StyleSheet.create({
   actionTextMuted: {
     color: T.textMuted,
   },
-});
+}));

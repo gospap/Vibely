@@ -1,7 +1,6 @@
-import { StyleSheet } from "react-native";
-import { T } from "@/styles/theme";
+import { makeStyles } from "@/styles/theme";
 
-export default StyleSheet.create({
+export default makeStyles((T) => ({
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -455,4 +454,4 @@ export default StyleSheet.create({
   loader: {
     marginVertical: 60,
   },
-});
+}));

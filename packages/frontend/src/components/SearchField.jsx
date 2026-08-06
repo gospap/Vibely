@@ -1,7 +1,9 @@
 import { View, Text, TextInput, Pressable, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
-import { Search, X, SlidersHorizontal } from "lucide-react-native";
-import { T } from "@/styles/theme";
+import Search from "lucide-react-native/dist/esm/icons/search";
+import X from "lucide-react-native/dist/esm/icons/x";
+import SlidersHorizontal from "lucide-react-native/dist/esm/icons/sliders-horizontal";
+import { makeStyles, useStyles, useTheme } from "@/styles/theme";
 
 // Same glass treatment as the tab bar: a dark blur, a hairline highlight along
 // the top edge, and a fully rounded pill. The two float over the same map, so
@@ -21,6 +23,8 @@ export default function SearchField({
   filtersOpen = false,
   style,
 }) {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
   return (
     <BlurView intensity={60} tint="dark" style={[styles.wrap, style]}>
       <View style={styles.glassOverlay} pointerEvents="none" />
@@ -70,7 +74,7 @@ export default function SearchField({
   );
 }
 
-const styles = StyleSheet.create({
+const styleSheet = makeStyles((T) => ({
   wrap: {
     flexDirection: "row",
     alignItems: "center",
@@ -115,4 +119,4 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: "800",
   },
-});
+}));

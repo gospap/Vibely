@@ -10,25 +10,26 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  Tag,
-  Clock,
-  Crown,
-  PartyPopper,
-  ChevronLeft,
-} from "lucide-react-native";
+import Tag from "lucide-react-native/dist/esm/icons/tag";
+import Clock from "lucide-react-native/dist/esm/icons/clock";
+import Crown from "lucide-react-native/dist/esm/icons/crown";
+import PartyPopper from "lucide-react-native/dist/esm/icons/party-popper";
+import ChevronLeft from "lucide-react-native/dist/esm/icons/chevron-left";
 
 import EmptyState from "@/components/EmptyState";
 import SearchField from "@/components/SearchField";
 import OfferSheet from "./OfferSheet";
 import { API_URL } from "@/constants/api";
 import { normalizeText } from "@/utils/format";
-import { T } from "@/styles/theme";
-import styles from "./OffersScreen.styles";
+import { useStyles, useTheme } from "@/styles/theme";
+import styleSheet from "./OffersScreen.styles";
 
 // Everything a guest can get for free or cheaper tonight, in one place. The
 // venues are already sorted promoted-first by the API.
 export default function OffersScreen() {
+  const T = useTheme();
+  const styles = useStyles(styleSheet);
+
   const navigation = useNavigation();
 
   const [offers, setOffers] = useState([]);
